@@ -1,0 +1,30 @@
+# Secrets — should never enter the repo
+.env
+*.env
+!bringup/secrets.example.env
+*token*.json
+*client_secret*.json
+*.gog_pw
+
+# Host-side deployment config (the operator's real values live at ~/.hermes/config.yaml).
+# If someone copies it into the repo by mistake, ignore it.
+config.yaml
+!bringup/config.example.yaml
+
+# Logs
+*.log
+
+# Local scratch
+.DS_Store
+.idea/
+.vscode/
+__pycache__/
+*.pyc
+*.swp
+*~
+
+# OS-level / large regenerable state (not in this dir anyway, but defensive)
+node_modules/
+.venv/
+venv/
+oauth-venv/

@@ -33,7 +33,7 @@ Put each item in place, then tell the executor to start. The executor will verif
 | 1 | **Slack bot token** `xoxb-…` and **app-level token** `xapp-…` | `~/.hermes/.env` as `SLACK_BOT_TOKEN`, `SLACK_APP_TOKEN` (mode 600) | Create the app via the Hermes-generated manifest (Phase D explains). Human must create the app + install to workspace. |
 | 2 | **Your Slack Member ID** (e.g. `U01ABC2DEF3`) | `~/.hermes/.env` as `SLACK_ALLOWED_USERS` | Without this Hermes denies all messages by default (safety). |
 | 3 | **Gandalf's Slack channel ID** (e.g. `#agent-gandalf`) | `~/.hermes/.env` as `SLACK_HOME_CHANNEL` | Create the channel; the bot will be invited in Phase E. |
-| 4 | **Google OAuth client secret JSON** (Desktop-app type) for a GCP project with **Gmail + Drive (+ People/Docs/Sheets) APIs enabled** | Path noted for the Google Workspace skill setup (Phase F) | Reuse `cecatlett@gmail.com`'s project or make a new one. **Publish the consent screen** (don't leave it in "Testing") to avoid the 7-day token death. |
+| 4 | **Google OAuth client secret JSON** (Desktop-app type) for a GCP project with **Gmail + Drive (+ People/Docs/Sheets) APIs enabled** | Path noted for the Google Workspace skill setup (Phase F) | Reuse an existing GCP project or make a new one. **Publish the consent screen** (don't leave it in "Testing") to avoid the 7-day token death. |
 | 5 | **Argo shim up** — `argo-shim` on `127.0.0.1:44497` with its Duo'd SSH tunnel live | Confirm: `curl -s http://127.0.0.1:44497/v1/models` returns models | Human completes Duo at tunnel start. Identity string is `catlett`. |
 | 6 | **vLLM up** — Qwen3-Coder-Next-FP8 served on `localhost:8000` | Confirm: `curl -s http://localhost:8000/v1/models` lists the model | Shared with the existing stack; do not restart it. |
 | 7 | **Model choice** — primary + fallback | Decide: primary = `argo` (claudesonnet46) **or** a cloud key; fallback = `vllm/<model-id>` | Default assumption: **primary = Argo `claudesonnet46`, fallback = local vLLM.** |
@@ -157,7 +157,7 @@ Replace the OpenClaw `check-todos.sh`/`CALENDAR.md`/`TODO.md` scaffolding with H
 ## Identity seed for Gandalf (apply during Phase C/E)
 
 - **Name / handle:** Gandalf / `gandalf`. **Role:** takes over the overseer/guardian duties previously held by LuoJi — the watchful steward of the system (naming theme shifts from *Three-Body* to Tolkien).
-- **Mandate (starter):** personal assistant on `cecatlett@gmail.com` — Slack conversation, Gmail triage, Drive review. Mirror LuoJi/CeC-Admin tone but start with **review-first** posture (no autonomous email sends until trust is established; encode "never send email without explicit approval" as a skill guardrail — this is the one E5 piece OpenShell doesn't cover for you).
+- **Mandate (starter):** personal assistant on the operator's chosen Google account (typically a dedicated agent-only address such as `<agent-name>.<operator>@gmail.com`, separate from the operator's personal inbox to bound blast radius) — Slack conversation, Gmail triage, Drive review. Mirror the previous overseer agent's tone but start with **review-first** posture (no autonomous email sends until trust is established; encode "never send email without explicit approval" as a skill guardrail — this is the one E5 piece OpenShell doesn't cover for you).
 - Keep his workspace/persona files minimal at first (Hermes persona + memory); grow skills as duties are confirmed.
 
 ---

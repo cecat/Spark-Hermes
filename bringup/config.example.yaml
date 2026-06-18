@@ -1,0 +1,106 @@
+# Spark-Hermes deployment config — TEMPLATE
+#
+# Copy this file to ~/.hermes/config.yaml, fill in your real values, then:
+#   chmod 644 ~/.hermes/config.yaml      (this file holds identifiers, not secrets)
+#
+# Secrets (xoxb-, xapp- tokens) go in a SEPARATE file: ~/.hermes/.env
+# (mode 600). See bringup/secrets.example.env for that template.
+#
+# All ops/apply-*.sh scripts read from ~/.hermes/config.yaml — they will
+# refuse to run if it's missing or has placeholder values.
+
+# ---------------------------------------------------------------------------
+# Agent identity — how Gandalf refers to himself and where his persona lives
+# ---------------------------------------------------------------------------
+agent:
+  name: gandalf                  # used by openshell + nemohermes commands; must match the sandbox name
+  display_name: Gandalf          # used in Slack manifest, OAuth consent screen, status messages
+
+# ---------------------------------------------------------------------------
+# Inference — which model the agent uses and how to reach it
+# ---------------------------------------------------------------------------
+inference:
+  provider_name: vllm-local       # name in `openshell provider list`
+  provider_type: openai           # openai | anthropic | nim-local | etc.
+  model: Qwen/Qwen3-Coder-Next-FP8
+  base_url: http://host.openshell.internal:8000/v1
+  credential_env: OPENAI_API_KEY
+  credential_value: local         # placeholder for unauthenticated local vLLM
+  # To switch primary to a different model, edit these values and run:
+  #   bash ops/set-inference.sh
+
+# ---------------------------------------------------------------------------
+# Slack — the bot's workspace and where it lives
+# ---------------------------------------------------------------------------
+slack:
+  workspace_name: Trillion Parameter Consortium
+  workspace_url: <your-workspace>.slack.com
+  team_id: T<YOUR_TEAM_ID>           # 11-char ID from your workspace's Slack URL
+  bot_user_id: U<BOT_USER_ID>        # filled in AFTER you create the Slack app
+  bot_id: B<BOT_ID>
+  app_id: A<APP_ID>
+  home_channel: "#agent-gandalf"
+  home_channel_id: C<HOME_CHANNEL_ID>
+  allowed_users:
+    - id: U<YOUR_MEMBER_ID>
+      name: "Your Name (@your-handle)"
+  # Tokens (SLACK_BOT_TOKEN, SLACK_APP_TOKEN) live in ~/.hermes/.env
+
+# ---------------------------------------------------------------------------
+# Google Workspace — the OAuth client + which account the agent reads
+# ---------------------------------------------------------------------------
+google:
+  agent_account: your-agent@gmail.com   # the Google account Gandalf reads/writes as
+  gcp_project_id: <your-project-id>     # from console.cloud.google.com (e.g. agent-prod-12345)
+  gcp_project_number: <numeric>         # for reference; appears as first segment of client_id
+  oauth_consent_status: published       # published | testing — keep published for no 7-day expiry
+  client_secret_host_path: ~/gandalf-bringup/client_secret.json
+  token_host_path: ~/gandalf-bringup/google_token.json
+  scopes:
+    - https://www.googleapis.com/auth/gmail.modify
+    - https://www.googleapis.com/auth/calendar
+    - https://www.googleapis.com/auth/drive
+    - https://www.googleapis.com/auth/contacts
+    - https://www.googleapis.com/auth/spreadsheets
+    - https://www.googleapis.com/auth/documents
+  # gmail.send is intentionally NOT in the default scope list — see
+  # gandalf/memories/30-guardrails.md. Add it back if/when you want Gandalf
+  # to send mail, then run: bash ops/reauth-google.sh
+
+# ---------------------------------------------------------------------------
+# Cron — scheduled jobs Gandalf should run
+# ---------------------------------------------------------------------------
+# Applied with: bash ops/apply-cron.sh
+# Schedules: "30m" (one-shot delay), "every 2h", "0 9 * * *" (cron UTC), ISO timestamp.
+# Delivery: "slack:<channel_id>" — substitution ${SLACK_HOME_CHANNEL} works.
+cron:
+  jobs:
+    - name: daily-briefing
+      schedule: "7 13 * * *"        # 08:07 CDT = 13:07 UTC; off-the-hour to avoid stampede
+      deliver: "slack:${slack.home_channel_id}"
+      prompt: |
+        Good morning. This is Gandalf, your overseer on the Spark.
+        Give a brief one-paragraph status of the day: any obvious system
+        anomalies you can detect via tool checks, plus a single suggested
+        priority for the day. Keep it under 80 words.
+
+# ---------------------------------------------------------------------------
+# vLLM bridge — where the local model server lives
+# ---------------------------------------------------------------------------
+# Used to render bringup/40-vllm-bridge/*.service when standing up a new host.
+vllm:
+  container_name: vllm-qwen3-coder-next
+  container_ip: 172.18.0.2          # `docker inspect <name> --format '{{range ...}}'`
+  container_port: 8000
+  sandbox_bridge_ip: 172.19.0.1     # the openshell-docker gateway IP
+
+# ---------------------------------------------------------------------------
+# Operator — who runs this deployment
+# ---------------------------------------------------------------------------
+operator:
+  name: Your Name
+  primary_email: you@example.com
+  work_email: you@yourwork.example
+  notes: |
+    Used in Gandalf's people memory and in cron-job outputs that address
+    you by name. Not a credential.

@@ -1,0 +1,13 @@
+[Unit]
+Description=Gandalf vLLM host bridge (socat 172.19.0.1:8000 -> vllm container 172.18.0.2:8000)
+After=docker.service network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/socat TCP-LISTEN:8000,bind=172.19.0.1,fork,reuseaddr TCP:172.18.0.2:8000
+Restart=on-failure
+RestartSec=3
+
+[Install]
+WantedBy=default.target
