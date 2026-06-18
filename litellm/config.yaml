@@ -1,0 +1,85 @@
+# LiteLLM proxy config — translates between Hermes (OpenAI-shape) and the
+# real upstreams (argo-shim for Anthropic-shape Claude models, vLLM for Qwen).
+#
+# Run via the systemd-user unit:
+#   systemctl --user start gandalf-litellm.service
+#
+# Reload after editing:
+#   systemctl --user restart gandalf-litellm.service
+#
+# What this gives us out of the box (vs. our scratch adapter):
+#   - Native LiteLLM Anthropic provider: real tool-call translation, streaming,
+#     all the edge cases handled
+#   - Native LiteLLM OpenAI provider for vLLM
+#   - Fallback chains (Claude → Qwen on failure)
+#   - Health/observability endpoints
+#   - One OpenAI-compatible endpoint Hermes can use for everything
+
+model_list:
+  # ── Argo (Argonne) via argo-shim ────────────────────────────────────────
+  # argo-shim is at http://127.0.0.1:44497, accepts the Anthropic Messages API
+  # (POST /v1/messages). We expose Claude variants as separate model names so
+  # Hermes/clients can pick which one.
+  #
+  # LiteLLM's `anthropic/<model>` syntax → uses the native Anthropic provider.
+  # The actual model name sent to argo is the part after "anthropic/" (e.g.
+  # `claudeopus47`). argo-shim accepts those internal names.
+  #
+  # api_base points at argo-shim's /argoapi base (mirrors how Claude Code
+  # configures ANTHROPIC_BASE_URL). The shim then rewrites /v1/messages →
+  # /argoapi/v1/messages internally.
+
+  - model_name: claudeopus47
+    litellm_params:
+      model: anthropic/claudeopus47
+      api_base: http://127.0.0.1:44497/argoapi
+      api_key: dummy-not-used-by-argo
+
+  - model_name: claudesonnet46
+    litellm_params:
+      model: anthropic/claudesonnet46
+      api_base: http://127.0.0.1:44497/argoapi
+      api_key: dummy-not-used-by-argo
+
+  - model_name: claudehaiku45
+    litellm_params:
+      model: anthropic/claudehaiku45
+      api_base: http://127.0.0.1:44497/argoapi
+      api_key: dummy-not-used-by-argo
+
+  # Default Hermes routes to whatever model_name is "hermes-agent"; alias so
+  # that name resolves to Claude Opus.
+  - model_name: hermes-agent
+    litellm_params:
+      model: anthropic/claudeopus47
+      api_base: http://127.0.0.1:44497/argoapi
+      api_key: dummy-not-used-by-argo
+
+  # ── vLLM Qwen (local) ───────────────────────────────────────────────────
+  # OpenAI-compatible endpoint; LiteLLM's openai/<model> provider just proxies
+  # the request shape unchanged.
+
+  - model_name: Qwen/Qwen3-Coder-Next-FP8
+    litellm_params:
+      model: openai/Qwen/Qwen3-Coder-Next-FP8
+      api_base: http://127.0.0.1:8000/v1
+      api_key: not-required
+
+# ── Fallback chains ─────────────────────────────────────────────────────────
+# If a Claude call fails (timeout, 5xx, tunnel down), retry the same prompt
+# against Qwen so Gandalf keeps working even when Argo is down for Duo re-auth.
+
+litellm_settings:
+  fallbacks:
+    - claudeopus47: ["Qwen/Qwen3-Coder-Next-FP8"]
+    - claudesonnet46: ["Qwen/Qwen3-Coder-Next-FP8"]
+    - claudehaiku45: ["Qwen/Qwen3-Coder-Next-FP8"]
+    - hermes-agent: ["Qwen/Qwen3-Coder-Next-FP8"]
+  num_retries: 2
+  request_timeout: 120
+
+# ── General settings ────────────────────────────────────────────────────────
+general_settings:
+  # No master key — proxy listens on 127.0.0.1 only; firewall is the perimeter.
+  # If/when we expose more broadly, set master_key here and require auth.
+  disable_master_key_return: true
