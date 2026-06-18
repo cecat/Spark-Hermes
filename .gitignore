@@ -8,8 +8,9 @@
 
 # Host-side deployment config (the operator's real values live at ~/.hermes/config.yaml).
 # If someone copies it into the repo by mistake, ignore it.
-config.yaml
+/config.yaml
 !bringup/config.example.yaml
+!litellm/config.yaml         # LiteLLM proxy config IS in repo
 
 # Logs
 *.log
