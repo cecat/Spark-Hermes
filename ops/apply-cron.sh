@@ -43,7 +43,9 @@ for j in (cfg.get('cron', {}).get('jobs') or []):
     name = j.get('name') or ''
     sched = j.get('schedule') or ''
     deliver = resolve(j.get('deliver') or '')
-    prompt = (j.get('prompt') or '').strip().replace('\t',' ')
+    # Encode newlines as literal '\n' so each job is exactly one line.
+    # The bash side decodes via $'...' or printf %b before passing to hermes cron.
+    prompt = (j.get('prompt') or '').strip().replace('\t',' ').replace('\\','\\\\').replace('\n','\\n')
     out.append("\t".join([name, sched, deliver, prompt]))
 print("\n".join(out))
 PYEOF
@@ -76,11 +78,12 @@ if [ "$DRY" -eq 1 ]; then
   exit 0
 fi
 
-# Create new jobs
+# Create new jobs. Decode the literal \n back to real newlines via printf %b.
 echo "$PARSED" | while IFS=$'\t' read -r name sched deliver prompt; do
   if echo "$TO_CREATE" | grep -qx "$name"; then
     note "Creating job: $name (schedule=$sched, deliver=$deliver)"
-    sb_exec /usr/local/bin/hermes cron create "$sched" "$prompt" \
+    real_prompt=$(printf '%b' "$prompt")
+    sb_exec /usr/local/bin/hermes cron create "$sched" "$real_prompt" \
       --name "$name" \
       --deliver "$deliver" 2>&1 | head -5
   fi

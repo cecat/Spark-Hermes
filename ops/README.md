@@ -4,6 +4,7 @@
 
 | I want to… | Run this |
 |---|---|
+| Bring the whole stack up after a reboot (or repair anything that's broken) | `bash start-all.sh` |
 | See if Gandalf is healthy | `bash status.sh` |
 | Push my updated `gandalf/memories/*.md` to the running agent | `bash apply-memories.sh` |
 | Push my updated `gandalf/skills/*/SKILL.md` to the agent | `bash apply-skills.sh` |
@@ -12,9 +13,11 @@
 | Change the inference model/provider after editing the `inference:` block in `~/.hermes/config.yaml` | `bash set-inference.sh` |
 | Re-authorize Google (token expired/revoked) | `bash reauth-google.sh` |
 | Take a snapshot before something risky | `bash snapshot.sh <reason>` |
+| Switch from vLLM Qwen to Argo Claude Opus 4.7 (requires sandbox rebuild) | [`upgrade-to-argo-opus.md`](upgrade-to-argo-opus.md) |
 | Rotate the Slack tokens | [`rotate-slack-tokens.md`](rotate-slack-tokens.md) |
 | Tighten the sandbox's network policy (Phase H follow-up) | [`tighten-network-policy.md`](tighten-network-policy.md) |
 | Add a new skill | [`add-a-skill.md`](add-a-skill.md) |
+| Understand how email actually sends (outbox + approval pattern) | [`email-outbox.md`](email-outbox.md) |
 
 ## Common conventions
 
