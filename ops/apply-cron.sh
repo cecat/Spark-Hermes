@@ -24,7 +24,9 @@ done
 
 CONTAINER=$(gandalf_container)
 
-# Parse cron.jobs[] from ~/.hermes/config.yaml into tab-separated name|sched|deliver|prompt.
+# Parse cron.jobs[] from ~/.hermes/config.yaml into tab-separated
+# name|sched|deliver|mode|payload — where mode is "prompt" (LLM) or "script"
+# (no-agent script job) and payload is the prompt or the script filename.
 # Expand ${slack.home_channel_id}-style refs against the same config file.
 PARSED=$(python3 - "$HERMES_CONFIG" <<'PYEOF'
 import os, re, sys, yaml
@@ -43,10 +45,15 @@ for j in (cfg.get('cron', {}).get('jobs') or []):
     name = j.get('name') or ''
     sched = j.get('schedule') or ''
     deliver = resolve(j.get('deliver') or '')
-    # Encode newlines as literal '\n' so each job is exactly one line.
-    # The bash side decodes via $'...' or printf %b before passing to hermes cron.
-    prompt = (j.get('prompt') or '').strip().replace('\t',' ').replace('\\','\\\\').replace('\n','\\n')
-    out.append("\t".join([name, sched, deliver, prompt]))
+    if j.get('script'):
+        mode = 'script'
+        payload = j['script']  # bare filename, resolved against ~/.hermes/scripts/
+    else:
+        mode = 'prompt'
+        # Encode newlines as literal '\n' so each job is exactly one line.
+        # The bash side decodes via printf %b before passing to hermes cron.
+        payload = (j.get('prompt') or '').strip().replace('\t',' ').replace('\\','\\\\').replace('\n','\\n')
+    out.append("\t".join([name, sched, deliver, mode, payload]))
 print("\n".join(out))
 PYEOF
 )
@@ -78,14 +85,24 @@ if [ "$DRY" -eq 1 ]; then
   exit 0
 fi
 
-# Create new jobs. Decode the literal \n back to real newlines via printf %b.
-echo "$PARSED" | while IFS=$'\t' read -r name sched deliver prompt; do
+# Create new jobs. Two modes:
+#   prompt → LLM-driven, the prompt is the instruction
+#   script → no-agent, the script's stdout IS the delivered message
+echo "$PARSED" | while IFS=$'\t' read -r name sched deliver mode payload; do
   if echo "$TO_CREATE" | grep -qx "$name"; then
-    note "Creating job: $name (schedule=$sched, deliver=$deliver)"
-    real_prompt=$(printf '%b' "$prompt")
-    sb_exec /usr/local/bin/hermes cron create "$sched" "$real_prompt" \
-      --name "$name" \
-      --deliver "$deliver" 2>&1 | head -5
+    note "Creating job: $name (schedule=$sched, deliver=$deliver, mode=$mode)"
+    if [ "$mode" = "script" ]; then
+      sb_exec /usr/local/bin/hermes cron create "$sched" \
+        --name "$name" \
+        --script "$payload" \
+        --no-agent \
+        --deliver "$deliver" 2>&1 | head -5
+    else
+      real_prompt=$(printf '%b' "$payload")
+      sb_exec /usr/local/bin/hermes cron create "$sched" "$real_prompt" \
+        --name "$name" \
+        --deliver "$deliver" 2>&1 | head -5
+    fi
   fi
 done
 

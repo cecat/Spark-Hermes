@@ -57,12 +57,28 @@ else:
 PYEOF
 }
 
-# Run a command inside the sandbox as user `sandbox` with HERMES_HOME set.
+# Run a command inside the sandbox as user `sandbox` with HERMES_HOME and
+# the right SSL/CA env vars so outbound calls to googleapis.com etc. succeed.
+#
+# We set HTTPLIB2_CA_CERTS (for the google-api-python-client → httplib2 path)
+# and REQUESTS_CA_BUNDLE / SSL_CERT_FILE for the other common HTTP libs.
+# The OpenShell L7 proxy MITMs HTTPS with a self-signed CA at
+# /etc/openshell-tls/ca-bundle.pem — without this the TLS handshake to any
+# external https host fails with "self-signed certificate in cert chain."
+#
+# We deliberately do NOT set HTTPS_PROXY/HTTP_PROXY here: the sandbox's
+# network namespace already routes outbound traffic through the L7 proxy
+# transparently, and adding the env vars triggers pysocks auto-detection
+# inside httplib2 which then talks to the proxy as if it were SOCKS5 and
+# gets back HTTP 403. (Lesson learned the hard way 2026-06-18.)
 sb_exec() {
   local container; container=$(gandalf_container)
   docker exec -u sandbox \
     -e HERMES_HOME=/sandbox/.hermes \
     -e PYTHONPATH=/sandbox/.hermes/pylibs \
+    -e SSL_CERT_FILE=/etc/openshell-tls/ca-bundle.pem \
+    -e REQUESTS_CA_BUNDLE=/etc/openshell-tls/ca-bundle.pem \
+    -e HTTPLIB2_CA_CERTS=/etc/openshell-tls/ca-bundle.pem \
     "$container" "$@"
 }
 
