@@ -45,8 +45,26 @@ PYTHON = "/opt/hermes/.venv/bin/python"
 
 EMAIL_RE = re.compile(r"[\w.+-]+@[\w.-]+\.\w+")
 
-OPERATOR_EMAILS = {"cecatlett@gmail.com", "catlett@anl.gov"}
-AGENT_EMAIL = "agentic.cec@gmail.com"
+# Operator + agent emails are read from /sandbox/.hermes/agent-identity.json
+# (written by ops/post-rebuild.sh from the host's ~/.hermes/config.yaml so the
+# repo doesn't have to bake in deployment-specific addresses). Format:
+#   {"agent_email": "...", "operator_emails": ["...", "..."]}
+# Fallback: empty allowlist → every draft fails the recipient check with a
+# clear error, which is the right behavior if identity.json is missing.
+IDENTITY_PATH = HERMES_HOME / "agent-identity.json"
+
+
+def _load_identity() -> tuple[set[str], str]:
+    try:
+        d = json.loads(IDENTITY_PATH.read_text())
+    except Exception:
+        return set(), ""
+    op = {e.lower() for e in (d.get("operator_emails") or [])}
+    ag = (d.get("agent_email") or "").lower()
+    return op, ag
+
+
+OPERATOR_EMAILS, AGENT_EMAIL = _load_identity()
 
 
 def normalize_token() -> None:

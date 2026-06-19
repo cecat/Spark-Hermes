@@ -71,6 +71,25 @@ else
   warn "google-workspace: setup.py --check did NOT report AUTHENTICATED. Run ops/reauth-google-custom-scopes.py to refresh."
 fi
 
+# ── 2b. agent-identity.json (operator + agent emails) ─────────────────
+# sandbox-scripts/outbox-send.py reads this to build its recipient
+# allowlist. Sourced from ~/.hermes/config.yaml so the repo doesn't have
+# to bake in deployment-specific addresses.
+echo ""
+echo "=== writing /sandbox/.hermes/agent-identity.json ==="
+AGENT_EMAIL_VAL=$(hermes_cfg google.agent_account)
+OP_PRIMARY=$(hermes_cfg operator.primary_email)
+OP_WORK=$(hermes_cfg operator.work_email)
+IDENTITY_JSON=$(python3 -c "
+import json
+print(json.dumps({
+  'agent_email': '$AGENT_EMAIL_VAL',
+  'operator_emails': [e for e in ['$OP_PRIMARY', '$OP_WORK'] if e]
+}, indent=2))
+")
+docker exec -u sandbox -i "$CONTAINER" sh -c 'cat > /sandbox/.hermes/agent-identity.json' <<< "$IDENTITY_JSON"
+info "agent-identity.json written (agent=$AGENT_EMAIL_VAL)"
+
 # ── 3. Sandbox-side scripts (Hermes no-agent cron jobs) ────────────────
 echo ""
 echo "=== restoring sandbox-side scripts to /sandbox/.hermes/scripts/ ==="

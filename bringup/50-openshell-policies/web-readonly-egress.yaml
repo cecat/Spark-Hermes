@@ -11,7 +11,7 @@
 # Layered with NextDNS (host-wide DNS filtering): even though this preset
 # allows the connection at the OpenShell layer, malware / phishing / porn /
 # gambling / piracy categories never resolve in the first place because
-# NextDNS profile "Spark" (id 4fd4fb) returns NXDOMAIN for them.
+# NextDNS profile "Spark" (id YOUR_NEXTDNS_PROFILE_ID) returns NXDOMAIN for them.
 #
 # Apply with: nemohermes gandalf policy-add --from-file <this-file> --yes
 #

@@ -85,5 +85,5 @@ summarize URLs"). Iteration tightens it fast.
   currently fail — need a broad-egress preset before Gandalf can fetch
   arbitrary URLs. See repo TODO.
 - NextDNS is filtering all DNS on the Spark host (profile "Spark",
-  id 4fd4fb), so even with broad OpenShell egress, malware /
+  id YOUR_NEXTDNS_PROFILE_ID), so even with broad OpenShell egress, malware /
   phishing / parental-control-blocked categories never resolve.

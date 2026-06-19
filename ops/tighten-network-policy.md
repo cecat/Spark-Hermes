@@ -3,7 +3,7 @@
 The OpenShell 0.0.44 default policy for the `gandalf` sandbox does **not** deny-by-default on general egress. Phase H of the initial bringup (see `../runlog/HANDOFF-2026-06-18.md`) confirmed the sandbox can reach:
 
 - Arbitrary internet hosts (`curl https://httpbin.org/get` → HTTP 200)
-- The Tailscale-bound OpenClaw gateway (`100.120.99.52:18789` → HTTP 200)
+- The Tailscale-bound OpenClaw gateway (`TAILNET_SPARK_IP:18789` → HTTP 200)
 - Hosts on the local LAN (`10.0.5.x`)
 - The host's SSH port (TCP connects; SSH auth itself still holds)
 
@@ -42,7 +42,7 @@ Either use `netfilter-persistent` (`sudo apt install iptables-persistent && sudo
 
 ```
 docker exec -u sandbox $(docker ps --format '{{.Names}}' | grep '^openshell-gandalf-' | head -1) \
-  curl -sS -o /dev/null -w 'HTTP %{http_code}\n' -m 3 http://100.120.99.52:18789/
+  curl -sS -o /dev/null -w 'HTTP %{http_code}\n' -m 3 http://TAILNET_SPARK_IP:18789/
 # Expect: HTTP 000 (connection refused / timeout)
 ```
 

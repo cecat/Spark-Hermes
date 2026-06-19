@@ -217,11 +217,11 @@ After many failed attempts with Hermes' `setup.py --auth-url` flow (Safari multi
 2. Ran:
    ```
    GOG_KEYRING_BACKEND=file GOG_KEYRING_PASSWORD=$(cat ~/.config/gogcli/.gog_pw) \
-     gog auth add agentic.cec@gmail.com --client gandalf \
+     gog auth add AGENT_GMAIL --client gandalf \
      --services gmail,contacts,drive,sheets,docs,calendar --manual --force-consent
    ```
-3. Browser → Allow → copied the localhost-callback URL back to the CLI → token written to `~/.config/gogcli/keyring/token:gandalf:agentic.cec@gmail.com` (encrypted with `.gog_pw`).
-4. Exported the refresh token: `gog auth tokens export agentic.cec@gmail.com --client gandalf --out ~/gandalf-bringup/gog-token-export.json`.
+3. Browser → Allow → copied the localhost-callback URL back to the CLI → token written to `~/.config/gogcli/keyring/token:gandalf:AGENT_GMAIL` (encrypted with `.gog_pw`).
+4. Exported the refresh token: `gog auth tokens export AGENT_GMAIL --client gandalf --out ~/gandalf-bringup/gog-token-export.json`.
 5. Converted to Hermes' `authorized_user`-format `google_token.json` (added `type`, `client_id`, `client_secret`, `token_uri`, kept the refresh token).
 6. Uploaded `google_token.json` and `google_client_secret.json` to `/sandbox/.hermes/` in the gandalf sandbox.
 7. Added custom OpenShell policy preset `google-workspace-egress` for all 9 Google API hosts (oauth2/accounts/gmail/drive/calendar/sheets/docs/people/www .googleapis.com).
@@ -269,7 +269,7 @@ The plan's Phase H gate said: *"Network isolation holds: attempt egress to a non
 | Test | Expected | Observed |
 |---|---|---|
 | `curl https://httpbin.org/get` (non-approved internet host) | DENIED | **HTTP 200 — succeeded** |
-| `curl http://100.120.99.52:18789/` (Tailscale-bound openclaw-gateway) | DENIED | **HTTP 200 — succeeded** |
+| `curl http://TAILNET_SPARK_IP:18789/` (Tailscale-bound openclaw-gateway) | DENIED | **HTTP 200 — succeeded** |
 | `curl http://10.0.5.124:22/` (LAN host SSH) | DENIED | TCP connected (got HTTP/0.9 = SSH banner) — not blocked at network level |
 | `curl http://host.docker.internal:22/` (host SSH) | DENIED | TCP connected (got HTTP/0.9 = SSH banner) — not blocked at network level |
 

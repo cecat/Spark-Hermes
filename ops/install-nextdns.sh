@@ -2,7 +2,7 @@
 # Install the NextDNS daemon on the Spark host and point the system resolver
 # at it. After this runs, every process on Spark (host shells, Gandalf sandbox,
 # OpenClaw agent containers, anything else) does DNS through NextDNS profile
-# "Spark" (id=4fd4fb) — meaning the categories/blocklists configured in the
+# "Spark" (id=YOUR_NEXTDNS_PROFILE_ID) — meaning the categories/blocklists configured in the
 # NextDNS dashboard take effect for all outbound name lookups.
 #
 # Why DNS-level filtering at all: gives us category-based blocking (malware,
@@ -13,7 +13,7 @@
 # What this script does:
 #   1. Add the NextDNS apt repo and signing key.
 #   2. apt install nextdns.
-#   3. Run `nextdns install -config 4fd4fb -report-client-info -auto-activate`
+#   3. Run `nextdns install -config YOUR_NEXTDNS_PROFILE_ID -report-client-info -auto-activate`
 #      which installs the daemon, points systemd-resolved at it (127.0.0.1:53),
 #      and starts it. -report-client-info makes the dashboard's Analytics tab
 #      show per-source-IP breakdown so you can tell Gandalf's queries from
@@ -26,8 +26,17 @@
 # user data. Pure host-network plumbing.
 set -eu
 
-PROFILE_ID="4fd4fb"
-PROFILE_NAME="Spark"
+# Set these before running. Get the profile id from the NextDNS dashboard:
+# Setup tab → Endpoints box → "ID" row (a short hex string like "abc123").
+PROFILE_ID="${NEXTDNS_PROFILE_ID:-YOUR_NEXTDNS_PROFILE_ID}"
+PROFILE_NAME="${NEXTDNS_PROFILE_NAME:-Spark}"
+
+if [ "$PROFILE_ID" = "YOUR_NEXTDNS_PROFILE_ID" ]; then
+  echo "ERROR: set NEXTDNS_PROFILE_ID first." >&2
+  echo "  export NEXTDNS_PROFILE_ID=abc123    # from your dashboard's Setup tab" >&2
+  echo "  bash $(basename "$0")" >&2
+  exit 2
+fi
 
 note()  { printf '\033[0;36m[i]\033[0m %s\n' "$*"; }
 ok()    { printf '\033[0;32m[✓]\033[0m %s\n' "$*"; }
