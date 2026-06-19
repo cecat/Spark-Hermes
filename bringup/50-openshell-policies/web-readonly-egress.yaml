@@ -1,0 +1,368 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# Broad web egress for Gandalf — gives the sandbox access to common
+# reference, news, research, and developer hosts so the agent can:
+#   - Read articles (for news-research tasks)
+#   - Look things up on Wikipedia / docs sites
+#   - Fetch papers from ArXiv
+#   - Use GitHub APIs beyond the basic git path
+#   - Register for things via web forms (POST/PUT/PATCH allowed)
+#
+# Layered with NextDNS (host-wide DNS filtering): even though this preset
+# allows the connection at the OpenShell layer, malware / phishing / porn /
+# gambling / piracy categories never resolve in the first place because
+# NextDNS profile "Spark" (id 4fd4fb) returns NXDOMAIN for them.
+#
+# Apply with: nemohermes gandalf policy-add --from-file <this-file> --yes
+#
+# WHY NOT WILDCARD `*`: OpenShell's egress engine doesn't support a
+# universal-host wildcard the way it supports subdomain wildcards
+# (`*.example.com`). The design philosophy is explicit allowlisting. So
+# this is a curated list — expand as Gandalf hits new blocked hosts you
+# trust. Symptom of a block: tool call returns "policy denied" or a
+# silent gaierror inside the sandbox.
+
+preset:
+  name: web-readonly-egress
+  description: "Broad web access (curated hosts) — news, reference, research, dev. Layered with NextDNS DNS filtering."
+
+network_policies:
+  web_readonly:
+    name: web_readonly
+    endpoints:
+      # ── Reference / encyclopedic ────────────────────────────────────
+      - host: en.wikipedia.org
+        port: 443
+        protocol: rest
+        enforcement: enforce
+        access: full
+      - host: "*.wikipedia.org"
+        port: 443
+        protocol: rest
+        enforcement: enforce
+        access: full
+      - host: en.wikibooks.org
+        port: 443
+        protocol: rest
+        enforcement: enforce
+        access: full
+      - host: en.wiktionary.org
+        port: 443
+        protocol: rest
+        enforcement: enforce
+        access: full
+      - host: commons.wikimedia.org
+        port: 443
+        protocol: rest
+        enforcement: enforce
+        access: full
+
+      # ── Research / academic ─────────────────────────────────────────
+      - host: arxiv.org
+        port: 443
+        protocol: rest
+        enforcement: enforce
+        access: full
+      - host: export.arxiv.org
+        port: 443
+        protocol: rest
+        enforcement: enforce
+        access: full
+      - host: "*.arxiv.org"
+        port: 443
+        protocol: rest
+        enforcement: enforce
+        access: full
+      - host: scholar.google.com
+        port: 443
+        protocol: rest
+        enforcement: enforce
+        access: full
+      - host: doi.org
+        port: 443
+        protocol: rest
+        enforcement: enforce
+        access: full
+      - host: openreview.net
+        port: 443
+        protocol: rest
+        enforcement: enforce
+        access: full
+      - host: dl.acm.org
+        port: 443
+        protocol: rest
+        enforcement: enforce
+        access: full
+      - host: ieeexplore.ieee.org
+        port: 443
+        protocol: rest
+        enforcement: enforce
+        access: full
+      - host: www.nature.com
+        port: 443
+        protocol: rest
+        enforcement: enforce
+        access: full
+      - host: www.science.org
+        port: 443
+        protocol: rest
+        enforcement: enforce
+        access: full
+
+      # ── News (major outlets — expand as needed) ─────────────────────
+      - host: www.nytimes.com
+        port: 443
+        protocol: rest
+        enforcement: enforce
+        access: full
+      - host: www.washingtonpost.com
+        port: 443
+        protocol: rest
+        enforcement: enforce
+        access: full
+      - host: www.wsj.com
+        port: 443
+        protocol: rest
+        enforcement: enforce
+        access: full
+      - host: www.bbc.com
+        port: 443
+        protocol: rest
+        enforcement: enforce
+        access: full
+      - host: www.bbc.co.uk
+        port: 443
+        protocol: rest
+        enforcement: enforce
+        access: full
+      - host: www.reuters.com
+        port: 443
+        protocol: rest
+        enforcement: enforce
+        access: full
+      - host: apnews.com
+        port: 443
+        protocol: rest
+        enforcement: enforce
+        access: full
+      - host: www.npr.org
+        port: 443
+        protocol: rest
+        enforcement: enforce
+        access: full
+      - host: www.economist.com
+        port: 443
+        protocol: rest
+        enforcement: enforce
+        access: full
+      - host: www.theguardian.com
+        port: 443
+        protocol: rest
+        enforcement: enforce
+        access: full
+      - host: www.bloomberg.com
+        port: 443
+        protocol: rest
+        enforcement: enforce
+        access: full
+      - host: www.ft.com
+        port: 443
+        protocol: rest
+        enforcement: enforce
+        access: full
+      - host: techcrunch.com
+        port: 443
+        protocol: rest
+        enforcement: enforce
+        access: full
+      - host: www.theverge.com
+        port: 443
+        protocol: rest
+        enforcement: enforce
+        access: full
+      - host: arstechnica.com
+        port: 443
+        protocol: rest
+        enforcement: enforce
+        access: full
+      - host: www.wired.com
+        port: 443
+        protocol: rest
+        enforcement: enforce
+        access: full
+      - host: spectrum.ieee.org
+        port: 443
+        protocol: rest
+        enforcement: enforce
+        access: full
+
+      # ── AI / ML community ───────────────────────────────────────────
+      - host: huggingface.co
+        port: 443
+        protocol: rest
+        enforcement: enforce
+        access: full
+      - host: "*.huggingface.co"
+        port: 443
+        protocol: rest
+        enforcement: enforce
+        access: full
+      - host: paperswithcode.com
+        port: 443
+        protocol: rest
+        enforcement: enforce
+        access: full
+      - host: www.anthropic.com
+        port: 443
+        protocol: rest
+        enforcement: enforce
+        access: full
+      - host: openai.com
+        port: 443
+        protocol: rest
+        enforcement: enforce
+        access: full
+      - host: ai.googleblog.com
+        port: 443
+        protocol: rest
+        enforcement: enforce
+        access: full
+      - host: deepmind.google
+        port: 443
+        protocol: rest
+        enforcement: enforce
+        access: full
+
+      # ── National lab / Argonne / Charlie's professional context ─────
+      - host: www.anl.gov
+        port: 443
+        protocol: rest
+        enforcement: enforce
+        access: full
+      - host: "*.anl.gov"
+        port: 443
+        protocol: rest
+        enforcement: enforce
+        access: full
+      - host: www.energy.gov
+        port: 443
+        protocol: rest
+        enforcement: enforce
+        access: full
+      - host: www.nsf.gov
+        port: 443
+        protocol: rest
+        enforcement: enforce
+        access: full
+      - host: trillionparameters.org
+        port: 443
+        protocol: rest
+        enforcement: enforce
+        access: full
+      - host: "*.trillionparameters.org"
+        port: 443
+        protocol: rest
+        enforcement: enforce
+        access: full
+
+      # ── Developer reference / docs ──────────────────────────────────
+      - host: stackoverflow.com
+        port: 443
+        protocol: rest
+        enforcement: enforce
+        access: full
+      - host: "*.stackoverflow.com"
+        port: 443
+        protocol: rest
+        enforcement: enforce
+        access: full
+      - host: developer.mozilla.org
+        port: 443
+        protocol: rest
+        enforcement: enforce
+        access: full
+      - host: docs.python.org
+        port: 443
+        protocol: rest
+        enforcement: enforce
+        access: full
+      - host: readthedocs.io
+        port: 443
+        protocol: rest
+        enforcement: enforce
+        access: full
+      - host: "*.readthedocs.io"
+        port: 443
+        protocol: rest
+        enforcement: enforce
+        access: full
+
+      # ── GitHub (api + raw content, beyond the basic git path) ───────
+      - host: raw.githubusercontent.com
+        port: 443
+        protocol: rest
+        enforcement: enforce
+        access: full
+      - host: gist.githubusercontent.com
+        port: 443
+        protocol: rest
+        enforcement: enforce
+        access: full
+      - host: objects.githubusercontent.com
+        port: 443
+        protocol: rest
+        enforcement: enforce
+        access: full
+
+      # ── Eventbrite / conference reg (the original use case) ─────────
+      - host: www.eventbrite.com
+        port: 443
+        protocol: rest
+        enforcement: enforce
+        access: full
+      - host: "*.eventbrite.com"
+        port: 443
+        protocol: rest
+        enforcement: enforce
+        access: full
+
+      # ── Search engine landing pages (for fallback fetch of result urls)
+      - host: www.google.com
+        port: 443
+        protocol: rest
+        enforcement: enforce
+        access: full
+      - host: www.bing.com
+        port: 443
+        protocol: rest
+        enforcement: enforce
+        access: full
+      - host: duckduckgo.com
+        port: 443
+        protocol: rest
+        enforcement: enforce
+        access: full
+      - host: html.duckduckgo.com
+        port: 443
+        protocol: rest
+        enforcement: enforce
+        access: full
+
+      # ── Universal helpers (TLS handshake / CRL / OCSP) ──────────────
+      - host: "*.cloudflare.com"
+        port: 443
+        protocol: rest
+        enforcement: enforce
+        access: full
+      - host: ocsp.digicert.com
+        port: 443
+        protocol: rest
+        enforcement: enforce
+        access: full
+      - host: crl.identrust.com
+        port: 443
+        protocol: rest
+        enforcement: enforce
+        access: full
+    binaries:
+      - { path: "/**" }
