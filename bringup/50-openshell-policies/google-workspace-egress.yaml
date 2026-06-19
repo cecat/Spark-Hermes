@@ -56,17 +56,26 @@ network_policies:
         protocol: rest
         enforcement: enforce
         rules:
+          # values.update is PUT, values.append/batchUpdate are POST,
+          # values.batchUpdateByDataFilter is POST, developerMetadata.update
+          # is PATCH, spreadsheets.create is POST, delete is DELETE.
+          # Allowing all five covers the full sheets v4 surface area.
           - allow: { method: GET, path: "/**" }
           - allow: { method: POST, path: "/**" }
           - allow: { method: PUT, path: "/**" }
+          - allow: { method: PATCH, path: "/**" }
+          - allow: { method: DELETE, path: "/**" }
       - host: docs.googleapis.com
         port: 443
         protocol: rest
         enforcement: enforce
         rules:
+          # docs.batchUpdate is POST; docs.get is GET; some inline-image
+          # updates use PATCH.
           - allow: { method: GET, path: "/**" }
           - allow: { method: POST, path: "/**" }
           - allow: { method: PUT, path: "/**" }
+          - allow: { method: PATCH, path: "/**" }
       - host: drive.googleapis.com
         port: 443
         protocol: rest
