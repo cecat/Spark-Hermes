@@ -20,9 +20,12 @@ manual fixup.
 - **Sandboxed agent**: Gandalf runs as Hermes Agent inside an NVIDIA
   OpenShell sandbox managed by NemoClaw, with restart-policy
   `unless-stopped` so it survives host reboots and Docker daemon restarts.
-- **Remote inference**: routed via LiteLLM proxy → argo-shim → Argonne
-  Argo (Claude Opus 4.7), with vLLM Qwen as a local fallback — same model
-  family the OpenClaw agents use, no vendor lock-in to local-only models.
+- **Remote inference**: routed via LiteLLM proxy →
+  [argo-shim](https://github.com/n-getty/argo-shim) (an
+  Anthropic-Messages-API-shape local proxy that tunnels to Argonne's
+  internal Argo gateway) → Argonne Argo (Claude Opus 4.7), with vLLM
+  Qwen as a local fallback — same model family the OpenClaw agents use,
+  no vendor lock-in to local-only models.
 - **Slack DM as the operator surface**: Charlie talks to Gandalf in a DM;
   all reports, drafts, and alerts arrive there with ✅/❌ reactions as the
   human-in-the-loop control.
