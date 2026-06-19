@@ -1,6 +1,7 @@
 # Platform & Architecture Options for the Spark Agent System
 
-**Date:** 2026-06-16
+**Date:** 2026-06-11
+**Updated:** 2026-06-16
 **Question:** Is OpenClaw still the best base for what you're doing (sandboxed, always-on personal/conference agents with a clean script-vs-LLM split, runbooks, and real safeguards), or should you redesign — possibly on a different platform? Below: a survey of viable options with trade-offs, then a recommendation.
 
 All product facts below were researched on 2026-06-16 (sources at the bottom). Confidence notes are included because two of the most relevant options (NVIDIA OpenShell / NemoClaw) are very new.
