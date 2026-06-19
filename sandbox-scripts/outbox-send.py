@@ -224,13 +224,17 @@ def process(draft_path: Path) -> str:
 
 
 def main() -> int:
+    # Run on every tick: the gateway can refresh the token at any time and
+    # write `expiry` back as an int, which any subsequent cold reader (our
+    # gmail subprocess, the heartbeat script, etc.) crashes on. Cheap;
+    # no-op when expiry is already a string or None.
+    normalize_token()
+
     if not APPROVED.exists():
-        return 0  # silent — nothing to do
+        return 0  # silent — nothing to send
     pending = sorted(p for p in APPROVED.glob("*.json") if p.is_file())
     if not pending:
         return 0  # silent
-
-    normalize_token()
 
     lines: list[str] = []
     for p in pending:
