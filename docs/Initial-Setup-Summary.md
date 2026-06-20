@@ -58,6 +58,30 @@ manual fixup.
   `/sandbox/.hermes/state/heartbeat-last.json` for future
   dead-mans-switch alerting if heartbeats stop entirely.
 
+## Follow-up fixes (post-bring-up)
+
+After the initial bring-up the agent picked up a recurring Slack DM
+notice from the Hermes gateway: *"📬 No home channel is set for Slack.
+Type /hermes sethome to make this chat your home channel..."*. The
+`/hermes` slash command isn't registered in our NemoClaw-mediated Slack
+setup (NemoClaw owns the Slack adapter and doesn't register slash
+commands on the bot's behalf), so the notice points at a button that
+doesn't exist. Standard NemoClaw + Hermes deployments hit this; not a
+setup mistake on our side.
+
+- **Suppressed via source patch + env var**:
+  - Patched `/opt/hermes/gateway/run.py` to gate the notice on a new env
+    var `HERMES_SUPPRESS_SETHOME_NOTICE=1`. Idempotent re-apply in
+    `ops/post-rebuild.sh` (greps for the `SPARK-HERMES PATCH` marker
+    before patching; fails loudly if a Hermes upgrade reworded the
+    upstream block so we know to re-derive).
+  - Env var lives in host `~/.hermes/.env` (gitignored). `post-rebuild.sh`
+    syncs it into `/sandbox/.hermes/.env` and recomputes
+    `/etc/nemoclaw/hermes.config-hash` so NemoClaw's integrity check
+    still passes.
+  - Hermes' `load_hermes_dotenv` reads sandbox `.env` at gateway startup,
+    so the var is in `os.environ` when the patched check runs.
+
 ## Not yet built (named for the future)
 
 - **Form-submission outbox**: shape mirrors email outbox (draft →
