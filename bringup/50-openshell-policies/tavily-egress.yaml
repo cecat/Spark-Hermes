@@ -2,11 +2,24 @@
 #
 # Tavily-only egress: Gandalf reaches the entire web by delegating fetch/
 # search to api.tavily.com instead of OpenShell allowlisting every target
-# host. NextDNS (host-wide DNS filter, profile "Spark") remains the only
-# direct content gate; this preset gates only the *transport*.
+# host. This preset gates only the *transport*.
 #
 # Pattern: agent → Tavily API → arbitrary URL. The OpenShell allowlist
 # stays small (one host) regardless of how many sites Gandalf reads.
+#
+# IMPORTANT — where the safety actually comes from:
+#   - NextDNS (host-wide DNS filter, profile "Spark") gates only the
+#     direct egress hosts that the sandbox resolves itself. For URLs
+#     fetched THROUGH Tavily, the resolution + fetch happen on Tavily's
+#     servers, so NextDNS never sees those queries and does not filter
+#     them. Don't operate under a "NextDNS filters everything" mental
+#     model.
+#   - For Tavily-routed URLs, the safety layer is Tavily itself: their
+#     fetch service strips JS, sanitizes content, returns markdown, and
+#     refuses known-malicious domains at their edge.
+#   - Gandalf's outbox + ✅ approval pattern is the final gate on any
+#     ACTION the agent takes based on fetched content (email, sheet
+#     edit, etc.) regardless of how the content was fetched.
 #
 # Apply with: nemohermes sandbox policy add gandalf --from-file <this-file> --yes
 

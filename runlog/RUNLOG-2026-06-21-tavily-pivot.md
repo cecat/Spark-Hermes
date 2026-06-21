@@ -4,8 +4,48 @@
 
 OpenShell egress went from a 150-host curated allowlist to a thin "transport
 gate" pattern: arbitrary-URL web access for Gandalf flows through
-`api.tavily.com`, the one allowlisted host. NextDNS (host-wide DNS filter,
-profile "Spark") handles destination-level safety.
+`api.tavily.com`, the one allowlisted host.
+
+## Where the safety actually comes from (and where it doesn't)
+
+This is the important nuance: **the safety story is different for direct
+egress vs. Tavily-routed fetches.**
+
+- **Direct egress** (the ~15 hosts still in `web-readonly-egress.yaml`
+  + the dedicated presets — Google APIs, GitHub, PyPI, HuggingFace,
+  NPM, Slack, Wikipedia, ANL/TPC26 work hosts): the sandbox resolves
+  these hostnames via the host's resolver, which is **NextDNS profile
+  "Spark"**. Malware / phishing / porn / gambling / piracy categories
+  return NXDOMAIN before the connection ever leaves the host. NextDNS
+  IS the destination-level safety layer for these.
+
+- **Tavily-routed fetches** (`api.tavily.com` is the only OpenShell
+  egress host; Gandalf POSTs the target URL to Tavily; Tavily's
+  servers do the actual fetch): the resolution and fetch happen on
+  Tavily's infrastructure, **not** from the Spark host. **NextDNS
+  never sees those queries.** It cannot filter them.
+
+  For Tavily-routed URLs, the safety layer is:
+    - Tavily's own URL-fetch service (which sanitizes content, strips
+      JS, returns markdown — so even a malicious target page can't
+      execute code in Gandalf's context)
+    - Tavily's domain trust signals (they refuse known-malicious
+      domains at their layer)
+    - Gandalf's outbox + approval pattern (any action Gandalf takes
+      based on fetched content — sending an email, editing a sheet —
+      still needs a human ✅)
+
+So the accurate "what protects what" matrix:
+
+  | Layer      | Direct-egress hosts | Tavily-fetched URLs |
+  |------------|---------------------|---------------------|
+  | NextDNS    | ✓ blocks at DNS     | ✗ doesn't see them  |
+  | OpenShell  | ✓ host allowlist    | ✓ only api.tavily.com|
+  | Tavily     | n/a                 | ✓ content sanitization|
+  | Outbox     | applies to actions  | applies to actions  |
+
+The earlier framing — "NextDNS handles destination-level safety" —
+was true only for the direct-egress column. Do not generalize it.
 
 Commits: `ec6e828` (egress pivot), and the follow-up that restored work hosts
 (`www.anl.gov`, `tpc26.org`, `trillionparameters.org` and their subdomain
