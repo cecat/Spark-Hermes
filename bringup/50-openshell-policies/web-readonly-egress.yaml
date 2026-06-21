@@ -364,5 +364,281 @@ network_policies:
         protocol: rest
         enforcement: enforce
         access: full
+
+      # ── Added 2026-06-21 from Gandalf's blocked-host audit ─────────
+      # Background: OpenShell's egress engine doesn't support a
+      # universal-host wildcard (only subdomain wildcards like
+      # *.foo.com). NextDNS handles the malware/phishing/etc category
+      # blocks at the DNS layer, so the OpenShell allowlist no longer
+      # needs to be the primary safety filter — it can be wide.
+      # Expanding generously as Gandalf hits new useful hosts.
+
+      # AI/ML vendor docs + blogs
+      - host: "*.anthropic.com"
+        port: 443
+        protocol: rest
+        enforcement: enforce
+        access: full
+      - host: "*.openai.com"
+        port: 443
+        protocol: rest
+        enforcement: enforce
+        access: full
+      - host: mistral.ai
+        port: 443
+        protocol: rest
+        enforcement: enforce
+        access: full
+      - host: "*.mistral.ai"
+        port: 443
+        protocol: rest
+        enforcement: enforce
+        access: full
+      - host: cohere.com
+        port: 443
+        protocol: rest
+        enforcement: enforce
+        access: full
+      - host: "*.cohere.com"
+        port: 443
+        protocol: rest
+        enforcement: enforce
+        access: full
+      - host: "*.deepmind.google"
+        port: 443
+        protocol: rest
+        enforcement: enforce
+        access: full
+      - host: ai.meta.com
+        port: 443
+        protocol: rest
+        enforcement: enforce
+        access: full
+      - host: research.google
+        port: 443
+        protocol: rest
+        enforcement: enforce
+        access: full
+      - host: blog.research.google
+        port: 443
+        protocol: rest
+        enforcement: enforce
+        access: full
+
+      # Conferences / research orgs frequently linked from arXiv
+      - host: tpc26.org
+        port: 443
+        protocol: rest
+        enforcement: enforce
+        access: full
+      - host: "*.tpc26.org"
+        port: 443
+        protocol: rest
+        enforcement: enforce
+        access: full
+      - host: neurips.cc
+        port: 443
+        protocol: rest
+        enforcement: enforce
+        access: full
+      - host: "*.neurips.cc"
+        port: 443
+        protocol: rest
+        enforcement: enforce
+        access: full
+      - host: icml.cc
+        port: 443
+        protocol: rest
+        enforcement: enforce
+        access: full
+      - host: "*.icml.cc"
+        port: 443
+        protocol: rest
+        enforcement: enforce
+        access: full
+      - host: iclr.cc
+        port: 443
+        protocol: rest
+        enforcement: enforce
+        access: full
+      - host: "*.iclr.cc"
+        port: 443
+        protocol: rest
+        enforcement: enforce
+        access: full
+      - host: aclanthology.org
+        port: 443
+        protocol: rest
+        enforcement: enforce
+        access: full
+      - host: "*.aclanthology.org"
+        port: 443
+        protocol: rest
+        enforcement: enforce
+        access: full
+
+      # Academic search / lookup APIs (no key required)
+      - host: api.semanticscholar.org
+        port: 443
+        protocol: rest
+        enforcement: enforce
+        access: full
+      - host: www.semanticscholar.org
+        port: 443
+        protocol: rest
+        enforcement: enforce
+        access: full
+      - host: api.crossref.org
+        port: 443
+        protocol: rest
+        enforcement: enforce
+        access: full
+      - host: api.openalex.org
+        port: 443
+        protocol: rest
+        enforcement: enforce
+        access: full
+
+      # Internet Archive / Wayback (for retrieving cached content)
+      - host: archive.org
+        port: 443
+        protocol: rest
+        enforcement: enforce
+        access: full
+      - host: web.archive.org
+        port: 443
+        protocol: rest
+        enforcement: enforce
+        access: full
+      - host: "*.archive.org"
+        port: 443
+        protocol: rest
+        enforcement: enforce
+        access: full
+
+      # Commercial search APIs — hosts only; add the API keys to
+      # ~/.hermes/.env (and only fill in the providers you actually
+      # have a key for). All free of charge to keep on the allowlist
+      # since they're inert without a key.
+      - host: api.exa.ai
+        port: 443
+        protocol: rest
+        enforcement: enforce
+        access: full
+      - host: api.tavily.com
+        port: 443
+        protocol: rest
+        enforcement: enforce
+        access: full
+      - host: api.firecrawl.dev
+        port: 443
+        protocol: rest
+        enforcement: enforce
+        access: full
+      - host: api.jina.ai
+        port: 443
+        protocol: rest
+        enforcement: enforce
+        access: full
+      - host: api.search.brave.com
+        port: 443
+        protocol: rest
+        enforcement: enforce
+        access: full
+      - host: google.serper.dev
+        port: 443
+        protocol: rest
+        enforcement: enforce
+        access: full
+      - host: api.serper.dev
+        port: 443
+        protocol: rest
+        enforcement: enforce
+        access: full
+      - host: r.jina.ai
+        port: 443
+        protocol: rest
+        enforcement: enforce
+        access: full
+
+      # University domains commonly cited in Argonne / TPC26 collaboration
+      - host: "*.uchicago.edu"
+        port: 443
+        protocol: rest
+        enforcement: enforce
+        access: full
+      - host: "*.utexas.edu"
+        port: 443
+        protocol: rest
+        enforcement: enforce
+        access: full
+      - host: "*.illinois.edu"
+        port: 443
+        protocol: rest
+        enforcement: enforce
+        access: full
+      - host: "*.mit.edu"
+        port: 443
+        protocol: rest
+        enforcement: enforce
+        access: full
+      - host: "*.stanford.edu"
+        port: 443
+        protocol: rest
+        enforcement: enforce
+        access: full
+      - host: "*.berkeley.edu"
+        port: 443
+        protocol: rest
+        enforcement: enforce
+        access: full
+      - host: "*.cmu.edu"
+        port: 443
+        protocol: rest
+        enforcement: enforce
+        access: full
+
+      # National labs (other than ANL which is already above)
+      - host: "*.ornl.gov"
+        port: 443
+        protocol: rest
+        enforcement: enforce
+        access: full
+      - host: "*.lbl.gov"
+        port: 443
+        protocol: rest
+        enforcement: enforce
+        access: full
+      - host: "*.llnl.gov"
+        port: 443
+        protocol: rest
+        enforcement: enforce
+        access: full
+      - host: "*.lanl.gov"
+        port: 443
+        protocol: rest
+        enforcement: enforce
+        access: full
+      - host: "*.nersc.gov"
+        port: 443
+        protocol: rest
+        enforcement: enforce
+        access: full
+      - host: "*.bnl.gov"
+        port: 443
+        protocol: rest
+        enforcement: enforce
+        access: full
+      - host: "*.fnal.gov"
+        port: 443
+        protocol: rest
+        enforcement: enforce
+        access: full
+      - host: "*.pnnl.gov"
+        port: 443
+        protocol: rest
+        enforcement: enforce
+        access: full
+
     binaries:
       - { path: "/**" }

@@ -37,6 +37,32 @@ else
   info "installed"
 fi
 
+# ── 1b. Inject OpenShell CA into certifi bundle ────────────────────────
+# httplib2 (used by google-api-python-client) trusts only certifi's bundled
+# Mozilla CA list, which doesn't include the OpenShell sandbox's TLS-
+# inspection proxy root. Without this, Python calls to googleapis.com fail
+# with "self-signed certificate in certificate chain" — even though our
+# env-var path (HTTPLIB2_CA_CERTS=/etc/openshell-tls/ca-bundle.pem) covers
+# every cron script, interactive tool-use sessions inside the gateway
+# don't always pick up that env. Belt and suspenders: also patch the bundle
+# itself so a bare Python invocation works.
+#
+# The script is idempotent (greps for "OpenShell Sandbox CA" marker before
+# appending). Source of truth: sandbox-scripts/inject-openshell-ca.sh.
+echo ""
+echo "=== injecting OpenShell CA into certifi bundle ==="
+INJECT_SH="$REPO/sandbox-scripts/inject-openshell-ca.sh"
+if [ -f "$INJECT_SH" ]; then
+  # Upload (it's also uploaded in step 3 below but we need it now, before that runs)
+  docker exec "$CONTAINER" mkdir -p /sandbox/.hermes/scripts
+  docker cp "$INJECT_SH" "$CONTAINER:/sandbox/.hermes/scripts/inject-openshell-ca.sh"
+  docker exec "$CONTAINER" chown sandbox:sandbox /sandbox/.hermes/scripts/inject-openshell-ca.sh
+  docker exec "$CONTAINER" chmod +x /sandbox/.hermes/scripts/inject-openshell-ca.sh
+  docker exec -u sandbox "$CONTAINER" bash /sandbox/.hermes/scripts/inject-openshell-ca.sh 2>&1 | sed 's/^/    /'
+else
+  warn "inject-openshell-ca.sh not found in repo; skipping certifi patch"
+fi
+
 # ── 2. Google OAuth token + client secret ──────────────────────────────
 echo ""
 echo "=== restoring Google OAuth credentials ==="
