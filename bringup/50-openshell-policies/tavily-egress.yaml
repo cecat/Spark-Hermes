@@ -1,0 +1,33 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# Tavily-only egress: Gandalf reaches the entire web by delegating fetch/
+# search to api.tavily.com instead of OpenShell allowlisting every target
+# host. NextDNS (host-wide DNS filter, profile "Spark") remains the only
+# direct content gate; this preset gates only the *transport*.
+#
+# Pattern: agent → Tavily API → arbitrary URL. The OpenShell allowlist
+# stays small (one host) regardless of how many sites Gandalf reads.
+#
+# Apply with: nemohermes sandbox policy add gandalf --from-file <this-file> --yes
+
+preset:
+  name: tavily-egress
+  description: "Single-host web gateway via api.tavily.com — search + extract + crawl."
+
+network_policies:
+  tavily:
+    name: tavily
+    endpoints:
+      - host: api.tavily.com
+        port: 443
+        protocol: rest
+        enforcement: enforce
+        rules:
+          - allow: { method: GET, path: "/**" }
+          - allow: { method: POST, path: "/**" }
+    binaries:
+      - { path: /usr/local/bin/hermes }
+      - { path: /opt/hermes/.venv/bin/python }
+      - { path: /usr/bin/python3 }
+      - { path: /usr/bin/python3.13 }
+      - { path: /usr/bin/curl }

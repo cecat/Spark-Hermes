@@ -151,27 +151,47 @@ PYEOF
   info "patch applied"
 fi
 
-# ── 2d. Sync HERMES_SUPPRESS_SETHOME_NOTICE into sandbox .env ──────────
+# ── 2d. Sync extra env vars into sandbox .env ──────────────────────────
 # Hermes' load_hermes_dotenv reads /sandbox/.hermes/.env at startup (the gateway
-# runs with HERMES_HOME=/sandbox/.hermes), but NemoClaw bakes /sandbox/.hermes/.env
-# from a limited allowlist of keys — and HERMES_SUPPRESS_SETHOME_NOTICE isn't on
-# the allowlist. Copy it over manually + update the integrity hash NemoClaw
-# verifies at startup.
-if grep -q '^HERMES_SUPPRESS_SETHOME_NOTICE=' ~/.hermes/.env 2>/dev/null; then
+# runs with HERMES_HOME=/sandbox/.hermes), but NemoClaw bakes that file from a
+# limited allowlist of keys. Anything outside that allowlist that we need —
+# notice-suppression flags, third-party API keys, etc. — must be copied in
+# manually and the NemoClaw integrity hash updated.
+#
+# Add new entries to EXTRA_ENV_KEYS as the deployment grows.
+EXTRA_ENV_KEYS=(
+  HERMES_SUPPRESS_SETHOME_NOTICE   # silence the broken /hermes sethome notice
+  TAVILY_API_KEY                   # web search/extract/crawl via api.tavily.com
+)
+SYNCED_ANY=0
+for KEY in "${EXTRA_ENV_KEYS[@]}"; do
+  if grep -q "^${KEY}=" ~/.hermes/.env 2>/dev/null; then
+    VAL=$(grep "^${KEY}=" ~/.hermes/.env | head -1 | cut -d= -f2-)
+    # Add or replace in sandbox .env
+    docker exec -u root "$CONTAINER" sh -c "
+      if grep -q '^${KEY}=' /sandbox/.hermes/.env; then
+        sed -i 's|^${KEY}=.*|${KEY}=${VAL}|' /sandbox/.hermes/.env
+      else
+        echo '${KEY}=${VAL}' >> /sandbox/.hermes/.env
+      fi
+    "
+    info "synced ${KEY} into sandbox .env"
+    SYNCED_ANY=1
+  fi
+done
+if [ "$SYNCED_ANY" -eq 1 ]; then
   echo ""
-  echo "=== syncing HERMES_SUPPRESS_SETHOME_NOTICE into sandbox .env ==="
-  VAL=$(grep '^HERMES_SUPPRESS_SETHOME_NOTICE=' ~/.hermes/.env | head -1 | cut -d= -f2-)
-  docker exec -u root "$CONTAINER" sh -c "
-    grep -q '^HERMES_SUPPRESS_SETHOME_NOTICE=' /sandbox/.hermes/.env || echo 'HERMES_SUPPRESS_SETHOME_NOTICE=$VAL' >> /sandbox/.hermes/.env
+  echo "=== recomputing NemoClaw integrity hash after .env edits ==="
+  docker exec -u root "$CONTAINER" sh -c '
     cd /sandbox/.hermes
-    cfg_hash=\$(sha256sum config.yaml | awk '{print \$1}')
-    env_hash=\$(sha256sum .env | awk '{print \$1}')
+    cfg_hash=$(sha256sum config.yaml | awk "{print \$1}")
+    env_hash=$(sha256sum .env | awk "{print \$1}")
     cat > /etc/nemoclaw/hermes.config-hash <<EOF2
-\$cfg_hash  /sandbox/.hermes/config.yaml
-\$env_hash  /sandbox/.hermes/.env
+$cfg_hash  /sandbox/.hermes/config.yaml
+$env_hash  /sandbox/.hermes/.env
 EOF2
-  "
-  info "sandbox .env updated, hash recomputed"
+  '
+  info "integrity hash updated"
 fi
 
 # ── 3. Sandbox-side scripts (Hermes no-agent cron jobs) ────────────────
