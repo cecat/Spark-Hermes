@@ -98,6 +98,39 @@ network_policies:
         enforcement: enforce
         access: full
 
+      # ── Charlie's work hosts (direct, not via Tavily — these are
+      # primary destinations he edits/reads constantly) ────────────────
+      - host: www.anl.gov
+        port: 443
+        protocol: rest
+        enforcement: enforce
+        access: full
+      - host: "*.anl.gov"
+        port: 443
+        protocol: rest
+        enforcement: enforce
+        access: full
+      - host: tpc26.org
+        port: 443
+        protocol: rest
+        enforcement: enforce
+        access: full
+      - host: "*.tpc26.org"
+        port: 443
+        protocol: rest
+        enforcement: enforce
+        access: full
+      - host: trillionparameters.org
+        port: 443
+        protocol: rest
+        enforcement: enforce
+        access: full
+      - host: "*.trillionparameters.org"
+        port: 443
+        protocol: rest
+        enforcement: enforce
+        access: full
+
       # ── Search engine landing pages (fallback only; routine queries
       # go through Tavily) ──────────────────────────────────────────────
       - host: duckduckgo.com
