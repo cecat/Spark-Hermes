@@ -1,0 +1,40 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# Permit egress from the gandalf sandbox to Telegram's Bot API so the Hermes
+# Telegram adapter can long-poll for updates and send replies/media.
+#
+# Unlike Signal, Telegram needs NO host-side daemon: the adapter runs IN-PROCESS
+# inside the gateway and talks outbound to api.telegram.org (same shape as
+# Slack's Socket Mode). So this single egress preset is the only infra needed.
+#
+#   - Bot API calls (getUpdates long-poll, sendMessage, etc.): api.telegram.org
+#   - File downloads (voice/images/docs): also api.telegram.org
+#     (path /file/bot<token>/...). One host covers both.
+#   - Telegram's own DNS resolution leaves from the host; if NextDNS (profile
+#     "Spark") ever blocks it, allow api.telegram.org there too.
+#
+# Apply with: nemohermes gandalf policy-add --from-file <this-file> --yes
+#         or: bash ../../ops/apply-policies.sh
+
+preset:
+  name: telegram-egress
+  description: "Telegram Bot API (long-poll updates + send + file download) via api.telegram.org."
+
+network_policies:
+  telegram:
+    name: telegram
+    endpoints:
+      - host: api.telegram.org
+        port: 443
+        protocol: rest
+        enforcement: enforce
+        rules:
+          # getUpdates is a long-lived GET; file downloads are GET.
+          - allow: { method: GET, path: "/**" }
+          # sendMessage / sendChatAction / setMyCommands / etc. are POST.
+          - allow: { method: POST, path: "/**" }
+    binaries:
+      - { path: /usr/local/bin/hermes }
+      - { path: /opt/hermes/.venv/bin/python }
+      - { path: /usr/bin/python3 }
+      - { path: /usr/bin/python3.13 }
