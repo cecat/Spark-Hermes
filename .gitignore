@@ -32,3 +32,6 @@ oauth-venv/
 
 # NextDNS dashboard screenshots (contain profile id)
 nextdns-screen*.png
+
+# Host-specific Claude Code context (differs Mac vs Spark; intentionally untracked)
+CLAUDE.md
