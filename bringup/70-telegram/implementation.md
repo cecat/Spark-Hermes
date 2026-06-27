@@ -1,5 +1,18 @@
 # 70 — Telegram bring-up: implementation log (Spark side)
 
+> ⚠️ **Superseded.** The "What still needs to happen" section in this file
+> recommended hand-injecting `platforms.telegram` into config.yaml + rehash to
+> avoid a rebuild. Phase A diagnosis later that day showed that premise was
+> wrong: Slack inbound runs via the NemoClaw env path
+> (`NEMOCLAW_MESSAGING_CHANNELS_B64` + `openshell:resolve:env:…` placeholders),
+> not via a hand-edited config.yaml. The supported path for adding Telegram is
+> `nemohermes gandalf channels add telegram` + `ops/post-rebuild.sh` — a
+> rebuild, but a rebuild-safe one. **Read
+> [`phase-a-findings.md`](phase-a-findings.md) for the corrected mechanism
+> before acting on anything below.**
+
+
+
 **Date:** 2026-06-27
 **Operator:** catlett (on `spark-960b`, repo at `bc30536`)
 **Goal:** follow `bringup/70-telegram/README.md` Step 4 onward — apply egress,
@@ -36,8 +49,9 @@ Appended a labeled block (kept all `SLACK_*` lines untouched, restored
 # Telegram — augments Slack; both adapters run concurrently. Adapter long-polls
 # api.telegram.org in-process (no host daemon). Egress: telegram-egress preset.
 # Setup: bringup/70-telegram/README.md. Added 2026-06-27.
-TELEGRAM_BOT_TOKEN=8504763598:AAEmpYXEBuNkgBr7moV2_gLRX4cbFuGR4fQ
-TELEGRAM_ALLOWED_USERS=8730021403
+TELEGRAM_BOT_TOKEN=<BOT_TOKEN>
+TELEGRAM_ALLOWED_USERS=<ALLOWED_USER_ID>
+# (real values live in ~/.hermes/.env on the Spark host; never commit them)
 ```
 
 ### 3. Stack health-checked ✅
@@ -79,7 +93,7 @@ SLACK_BOT_TOKEN=openshell:resolve:env:v366992711826075384_SLACK_BOT_TOKEN
 SLACK_ALLOWED_USERS=U05H8JM8NFQ
 SLACK_ALLOWED_CHANNELS=C0BAV5A4C7R
 HERMES_SUPPRESS_SETHOME_NOTICE=1
-TAVILY_API_KEY=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
+TAVILY_API_KEY=<TAVILY_KEY>
 NEMOCLAW_SLACK_CONFIG_B64=eyJhbGxvd2VkQ2hhbm5lbHMiOlsiQzBCQVY1QTRDN1IiXX0=
 NEMOCLAW_TELEGRAM_CONFIG_B64=e30=        # ← base64 of "{}", i.e. empty
 HERMES_TELEGRAM_DISABLE_FALLBACK_IPS=1
@@ -178,8 +192,8 @@ it implicitly in "restart the stack".
    post-Tavily, so a careful re-verification is warranted.
 
 2. **Run `nemohermes gandalf channels add telegram`** (interactive). Supply:
-   - Bot token: `8504763598:AAEmpYXEBuNkgBr7moV2_gLRX4cbFuGR4fQ`
-   - Allowed user: `8730021403`
+   - Bot token: `<BOT_TOKEN>` (real value in `~/.hermes/.env`)
+   - Allowed user: `<ALLOWED_USER_ID>` (real value in `~/.hermes/.env`)
 
 3. **Run `bash ops/post-rebuild.sh`** to:
    - Re-apply the `gateway/run.py` sethome-notice patch

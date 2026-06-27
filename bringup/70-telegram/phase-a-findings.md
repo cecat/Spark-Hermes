@@ -211,8 +211,8 @@ Steps:
 3. **Operator confirmation in chat.** Per CLAUDE.md destructive-ops policy.
 4. **Live run.** `nemohermes gandalf channels add telegram` — interactive.
    Supply:
-   - Bot token: `8504763598:AAEmpYXEBuNkgBr7moV2_gLRX4cbFuGR4fQ`
-   - Allowed user: `8730021403`
+   - Bot token: `<BOT_TOKEN>` (real value in `~/.hermes/.env`)
+   - Allowed user: `<ALLOWED_USER_ID>` (real value in `~/.hermes/.env`)
    Sandbox rebuild follows.
 5. **`bash ops/post-rebuild.sh`** — re-apply the `gateway/run.py` sethome
    patch, re-sync `TAVILY_API_KEY` + `HERMES_SUPPRESS_SETHOME_NOTICE` into

@@ -1,5 +1,19 @@
 # Telegram bring-up — corrected next steps for Claude Code
 
+> ⚠️ **Superseded.** The central premise here — that Slack inbound today
+> requires a manual `platforms.slack` injection into `/sandbox/.hermes/config.yaml`
+> + a rehash, and is therefore not rebuild-safe — was tested against the live
+> sandbox and turned out to be false. `config.yaml` is byte-for-byte unedited
+> (integrity hash matches), yet Slack Socket Mode is connected because the
+> Hermes NemoClaw plugin starts adapters from `NEMOCLAW_MESSAGING_CHANNELS_B64`
+> in the gateway env, which NemoClaw repopulates on every rebuild. **The
+> rebuild risk this file flags does not exist in practice.** See
+> [`phase-a-findings.md`](phase-a-findings.md) for the evidence and the
+> corrected Phase B plan (use the supported `channels add telegram` +
+> `ops/post-rebuild.sh` path).
+
+
+
 **Read this before doing anything on the Spark.** It supersedes the "what still
 needs to happen" section of `implementation.md`. Author: analysis from the Mac
 repo, 2026-06-27, after reviewing `implementation.md`, `runlog/HANDOFF-2026-06-18.md`,
