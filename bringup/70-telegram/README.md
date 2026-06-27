@@ -1,149 +1,94 @@
 # 70 — Telegram (augments Slack)
 
-Adds **Telegram** to Gandalf alongside the existing Slack adapter. Both run
-concurrently — this does **not** touch the Slack setup.
-
-Telegram is Hermes's most deeply supported messaging platform (richest adapter:
-voice transcription, TTS voice bubbles, group mention controls, etc.) and the
-**simplest to operate in this deployment**.
-
-## Why this is simpler than Slack or Signal here
-
-The Telegram adapter runs **in-process inside the gateway** and long-polls
-`api.telegram.org` (outbound HTTPS — same shape as Slack's Socket Mode). So
-unlike Signal there is **no host daemon and no socat bridge**: the only
-deployment infra is one OpenShell egress preset. And a Telegram **bot is its own
-identity** (`@your_bot_username`) by construction — no phone number to source,
-which is exactly the you-vs-Gandalf separation you wanted.
-
-```
-your phone (Telegram)  ─DM→  api.telegram.org  ←long-poll─  Hermes Telegram adapter
-                                                            (in the gandalf sandbox)
-```
-
-## Where each step runs (Mac ↔ Spark)
-
-This repo is edited on the **MacBook**; Hermes runs on the **DGX Spark**.
-
-| Step | Runs on |
-|---|---|
-| 1. Create bot via @BotFather | Your Telegram app (phone/desktop) |
-| 2. Get your numeric user ID | Your Telegram app |
-| 3. These repo files (egress preset, env template) | **Mac** → commit → push |
-| 4. Pull + apply egress, edit `~/.hermes/.env`, restart | **Spark** (after `git pull`) |
-| 5. Smoke test | Your Telegram app + Spark logs |
-
-> **Alpha software** (PLAN rule #1): reconcile the Hermes Telegram env vars and
-> commands against the live doc before running on the Spark —
-> <https://hermes-agent.nousresearch.com/docs/user-guide/messaging/telegram>.
-> Note any deviation in `runlog/`.
+Add a Telegram bot to Gandalf, running alongside the existing Slack adapter
+(both at once; Slack is not touched).
 
 ---
 
-## Step 1 — Create the bot (@BotFather, in your Telegram app)
+## Who does what — read this first
 
-1. Message **@BotFather** → send `/newbot`.
-2. Display name: **Gandalf**. Username: must be unique and end in `bot`
-   (e.g. `gandalf_overseer_bot`).
-3. Copy the **API token** it returns: `123456789:ABCdef...`. Keep it secret
-   (`/revoke` in BotFather if it ever leaks).
-4. (optional polish) `/setdescription`, `/setuserpic`, and `/setcommands`:
-   ```
-   help - Show help information
-   new - Start a new conversation
-   sethome - Set this chat as the home channel
-   ```
-5. Leave **Group Privacy ON** (the default) — Gandalf is DM-only for now. Only
-   disable it (BotFather → `/mybots` → Bot Settings → Group Privacy) if you
-   later add the bot to a group.
+**You (Charlie), in the Telegram app — Part A.** Two steps. A human has to do
+these because they happen inside Telegram's app; no Claude Code can do them.
+They produce two values: a **bot token** and **your numeric user ID**.
 
-## Step 2 — Get your numeric user ID (in your Telegram app)
+**Claude Code on the Spark — Part B.** Everything else (egress policy, `.env`,
+restart, verification). Hand it this file plus the two values from Part A. It
+does **not** need to touch the Telegram app.
 
-Message **@userinfobot** — it replies instantly with your ID (a number like
-`123456789`, **not** your @username). This is the allowlist entry.
+> Why no host daemon/bridge (unlike Signal): the Telegram adapter runs
+> in-process in the gateway and long-polls `api.telegram.org` outbound — same
+> shape as Slack's Socket Mode. The only infra is one OpenShell egress preset.
 
-## Step 3 — On the Mac: commit & push these repo files
+---
 
-The egress preset (`bringup/50-openshell-policies/telegram-egress.yaml`) and the
-updated env template (`bringup/secrets.example.env`) are already in this repo.
+## Part A — You, in the Telegram app (~3 min)
+
+1. **Create the bot.** Message **@BotFather** → `/newbot` → display name
+   **Gandalf** → username ending in `bot` (e.g. `gandalf_overseer_bot`).
+   BotFather replies with a **token** like `123456789:ABCdef...`. Copy it.
+   *(Keep it secret; `/revoke` in BotFather if it ever leaks.)*
+2. **Get your user ID.** Message **@userinfobot** → it replies with a number
+   like `123456789` (this is **not** your @username). Copy it.
+
+Then hand the job to Claude Code on the Spark with a message like:
+
+> "Set up Telegram for Gandalf following `bringup/70-telegram/README.md` Part B.
+> Bot token: `123456789:ABCdef...` — my Telegram user ID: `123456789`.
+> Don't touch Slack."
+
+That's everything you do. Stop here.
+
+---
+
+## Part B — Claude Code on the Spark (executable runbook)
+
+You are running on `spark-ts` in `~/code/Spark-Hermes` (already `git pull`ed).
+The operator gave you `TELEGRAM_BOT_TOKEN` and `TELEGRAM_ALLOWED_USERS` (their
+numeric ID) in chat. Do the following, stopping at any failed ✅ gate.
+
+**Alpha software:** before editing `.env`, fetch the live Hermes Telegram doc
+and reconcile the env-var names / commands; note any drift in `runlog/`.
+<https://hermes-agent.nousresearch.com/docs/user-guide/messaging/telegram>
 
 ```bash
-# on the MacBook, in this repo
-git add bringup/70-telegram bringup/50-openshell-policies/telegram-egress.yaml bringup/secrets.example.env
-git commit -m "Add Telegram adapter phase (augments Slack)"
-git push
-```
+cd ~/code/Spark-Hermes
 
-## Step 4 — On the Spark: pull, apply egress, set token, restart
-
-```bash
-# on spark-ts
-cd ~/code/Spark-Hermes && git pull
-
-# 4a. Approve sandbox egress to api.telegram.org
+# 1. Apply the OpenShell egress preset (idempotent; re-applying is a no-op).
 bash ops/apply-policies.sh
-nemohermes gandalf policy-list | grep -i telegram     # confirm telegram-egress loaded
+nemohermes gandalf policy-list | grep -i telegram
+#    ✅ GATE 1: telegram-egress shows as loaded. Else stop.
 
-# 4b. Add the Telegram block to ~/.hermes/.env (template: bringup/secrets.example.env).
-#     Leave every SLACK_* line untouched. Fill in real values:
-#       TELEGRAM_BOT_TOKEN=123456789:ABCdef...
-#       TELEGRAM_ALLOWED_USERS=<your numeric id from Step 2>
-#     Then:
+# 2. Add ONLY these two lines to ~/.hermes/.env, using the operator's values.
+#    Leave every existing SLACK_* line untouched. Do not echo the token to logs.
+#       TELEGRAM_BOT_TOKEN=<operator-provided token>
+#       TELEGRAM_ALLOWED_USERS=<operator-provided numeric id>
+#    (Template/comments: bringup/secrets.example.env)
 chmod 600 ~/.hermes/.env
+grep -c '^TELEGRAM_BOT_TOKEN=' ~/.hermes/.env    # expect 1
+grep -c '^TELEGRAM_ALLOWED_USERS=' ~/.hermes/.env # expect 1
+#    ✅ GATE 2: both vars present exactly once; Slack vars still present. Else stop.
 
-# 4c. Restart the stack so the gateway re-reads ~/.hermes/.env
+# 3. Restart the stack so the gateway re-reads ~/.hermes/.env.
 bash ops/start-all.sh
+#    ✅ GATE 3: start-all reports healthy. Else stop and report the failing layer.
+
+# 4. Confirm the adapter connected (alongside Slack, not replacing it).
+grep -iE '\[telegram\]|Connected to Telegram' <gateway-log-path>
+#    ✅ GATE 4: a Telegram-connected line appears AND Slack is still connected.
 ```
 
-> **Access control:** without `TELEGRAM_ALLOWED_USERS`, the gateway denies all
-> Telegram messages by default (the adapter has terminal access). Your numeric
-> ID is the allowlist; the bot's own identity is the token.
+Then ask the operator to verify from the Telegram app:
+- DM the bot (`@<bot_username>`) → expect a reply within seconds.
+- Send `/sethome` in that DM (designates it for any future scheduled delivery).
+- Confirm a Slack DM/mention still works.
 
-## Step 5 — Smoke test ✅
-
-1. **Adapter up:** gateway log shows the Telegram adapter connecting alongside
-   Slack:
-   ```bash
-   grep -iE '\[telegram\]|Connected to Telegram' <gateway.log>
-   ```
-2. **DM works:** in Telegram, open your bot (`@your_bot_username`) and send
-   `hi` → expect a reply within seconds.
-3. **Allowlist holds:** a message from a different account is ignored; the log
-   shows a denial, not a crash.
-4. **Slack still works:** send a Slack DM/mention — augmentation, not replacement.
-5. **Home channel:** send `/sethome` in the bot DM so scheduled jobs can deliver
-   there.
-
-If all five pass, Telegram is live next to Slack.
-
----
-
-## Optional — also deliver the daily briefing to Telegram
-
-The existing `daily-briefing` cron (in `~/.hermes/config.yaml`) delivers to
-Slack. To **also** send it to Telegram, add a second job targeting the chat you
-ran `/sethome` in, then `bash ops/apply-cron.sh`:
-
-```yaml
-    - name: daily-briefing-telegram
-      schedule: "7 13 * * *"
-      deliver: "telegram:home"      # verify the telegram delivery syntax in the cron docs
-      prompt: |
-        (same prompt as daily-briefing)
-```
-
-Confirm the exact `telegram:` delivery-target syntax against the Hermes cron
-docs before applying — the `slack:<id>` form is what's proven in this repo.
+Report which gates passed. Do not enable groups, and do not add any Telegram
+cron delivery — the daily briefing stays Slack-only by decision.
 
 ---
 
 ## Rollback
 
-```bash
-# on the Spark: remove the TELEGRAM_* block from ~/.hermes/.env, then
-bash ops/start-all.sh
-# (optional) revoke the bot token in @BotFather
-```
-
-Nothing here touches Slack, vLLM, argo, or LiteLLM — removing the env block (and
-optionally the egress preset) fully reverts.
+Remove the two `TELEGRAM_*` lines from `~/.hermes/.env`, then
+`bash ops/start-all.sh`. Optionally revoke the token in @BotFather. Nothing here
+affects Slack, vLLM, argo, or LiteLLM.
