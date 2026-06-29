@@ -13,7 +13,15 @@
       "home_tab_enabled": false,
       "messages_tab_enabled": true,
       "messages_tab_read_only_enabled": false
-    }
+    },
+    "slash_commands": [
+      {
+        "command": "/hermes",
+        "description": "Send a command or question to Gandalf (try `/hermes help`)",
+        "usage_hint": "[subcommand | question]",
+        "should_escape": false
+      }
+    ]
   },
   "oauth_config": {
     "scopes": {
@@ -23,12 +31,14 @@
         "channels:history",
         "channels:read",
         "groups:history",
+        "groups:read",
         "im:history",
         "im:read",
         "im:write",
         "users:read",
         "files:read",
-        "files:write"
+        "files:write",
+        "reactions:read"
       ]
     }
   },

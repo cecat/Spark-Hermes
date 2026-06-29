@@ -10,6 +10,17 @@ features:
     home_tab_enabled: false
     messages_tab_enabled: true
     messages_tab_read_only_enabled: false
+  # Slash commands declared here so Slack delivers them to the app over
+  # Socket Mode. Without this, /hermes shows "Running /hermes..." and
+  # silently times out — Slack has no idea where to route the command.
+  # `/hermes <subcommand> [args]` is the dispatcher form; Hermes routes
+  # the subcommand (sethome, new, status, model, usage, etc.) internally.
+  # See bringup/20-slack-app/README.md for the full subcommand list.
+  slash_commands:
+    - command: /hermes
+      description: Send a command or question to Gandalf (try `/hermes help`)
+      usage_hint: "[subcommand | question]"
+      should_escape: false
 oauth_config:
   scopes:
     bot:

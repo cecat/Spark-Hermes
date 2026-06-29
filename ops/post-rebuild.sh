@@ -116,52 +116,34 @@ print(json.dumps({
 docker exec -u sandbox -i "$CONTAINER" sh -c 'cat > /sandbox/.hermes/agent-identity.json' <<< "$IDENTITY_JSON"
 info "agent-identity.json written (agent=$AGENT_EMAIL_VAL)"
 
-# ── 2c. Hermes gateway source patch (suppress /hermes sethome notice) ──
-# Upstream bug B: Hermes' gateway emits a "📬 No home channel is set for
-# Slack. Type /hermes sethome..." notice on every fresh Slack conversation,
-# but /hermes is not registered as a Slack slash command in this
-# NemoClaw-mediated setup — so the instruction points at a broken button.
-# Patch run.py to gate the notice on HERMES_SUPPRESS_SETHOME_NOTICE=1
-# (which we set in ~/.hermes/.env, hydrated via load_hermes_dotenv).
+# ── 2c. (removed) Slack sethome notice suppression ─────────────────────
+# The previous version of this script patched /opt/hermes/gateway/run.py to
+# gate the "📬 No home channel is set for Slack. Type /hermes sethome..."
+# notice behind HERMES_SUPPRESS_SETHOME_NOTICE=1. That was treating the
+# symptom, not the cause: /hermes wasn't reaching the gateway because the
+# Slack app manifest never declared the slash command. The patch also
+# didn't survive container restarts (the writable layer is wiped), so it
+# was an in-effect no-op anyway.
 #
-# Idempotent: re-applies cleanly on every rebuild. Backs up the original.
-echo ""
-echo "=== applying Hermes run.py patch (suppress Slack sethome notice) ==="
-PATCH_MARKER="SPARK-HERMES PATCH 2026-06-20"
-if docker exec "$CONTAINER" grep -q "$PATCH_MARKER" /opt/hermes/gateway/run.py 2>/dev/null; then
-  info "patch already present; skipping"
-else
-  docker exec -u root "$CONTAINER" cp /opt/hermes/gateway/run.py /opt/hermes/gateway/run.py.orig-pre-sethome-patch
-  docker exec -u root "$CONTAINER" python3 - <<'PYEOF'
-p = "/opt/hermes/gateway/run.py"
-old = """        # One-time prompt if no home channel is set for this platform
-        # Skip for webhooks - they deliver directly to configured targets (github_comment, etc.)
-        if not history and source.platform and source.platform != Platform.LOCAL and source.platform != Platform.WEBHOOK:"""
-new = """        # One-time prompt if no home channel is set for this platform
-        # Skip for webhooks - they deliver directly to configured targets (github_comment, etc.)
-        # SPARK-HERMES PATCH 2026-06-20: opt-out via HERMES_SUPPRESS_SETHOME_NOTICE=1
-        # (the slash command the notice mentions isn't registered in our setup)
-        _suppress = (__import__("os").getenv("HERMES_SUPPRESS_SETHOME_NOTICE","").lower() in ("1","true","yes"))
-        if not history and source.platform and source.platform != Platform.LOCAL and source.platform != Platform.WEBHOOK and not _suppress:"""
-src = open(p).read()
-assert old in src, "patch target block not found — Hermes may have been upgraded; review manually"
-open(p, "w").write(src.replace(old, new, 1))
-print("patched")
-PYEOF
-  info "patch applied"
-fi
+# Fix is in bringup/20-slack-app/manifest.{yaml,json}: declare /hermes,
+# reinstall the app to the workspace. Once /hermes works, the user can
+# `/hermes sethome` once and the notice stops firing — no patch needed.
+#
+# Removed 2026-06-29. See bringup/20-slack-app/README.md "Day 2" section.
 
 # ── 2d. Sync extra env vars into sandbox .env ──────────────────────────
 # Hermes' load_hermes_dotenv reads /sandbox/.hermes/.env at startup (the gateway
 # runs with HERMES_HOME=/sandbox/.hermes), but NemoClaw bakes that file from a
 # limited allowlist of keys. Anything outside that allowlist that we need —
-# notice-suppression flags, third-party API keys, etc. — must be copied in
-# manually and the NemoClaw integrity hash updated.
+# third-party API keys, plus the platform HOME_CHANNEL env vars that
+# `/hermes sethome` writes to ~/.hermes/.env — must be copied in manually
+# and the NemoClaw integrity hash updated.
 #
 # Add new entries to EXTRA_ENV_KEYS as the deployment grows.
 EXTRA_ENV_KEYS=(
-  HERMES_SUPPRESS_SETHOME_NOTICE   # silence the broken /hermes sethome notice
   TAVILY_API_KEY                   # web search/extract/crawl via api.tavily.com
+  SLACK_HOME_CHANNEL               # belt-and-suspenders: persist /hermes sethome across rebuilds
+  TELEGRAM_HOME_CHANNEL            # same, for the Telegram adapter (also written by /sethome)
 )
 SYNCED_ANY=0
 for KEY in "${EXTRA_ENV_KEYS[@]}"; do
