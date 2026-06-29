@@ -40,7 +40,7 @@ in your home channel. This is the only Slack step that's not automatable.
 
 ## Scopes the manifest includes
 
-Bot: `chat:write app_mentions:read channels:history channels:read groups:history groups:read im:history im:read im:write users:read files:read files:write reactions:read`
+Bot: `chat:write commands app_mentions:read channels:history channels:read groups:history groups:read im:history im:read im:write users:read files:read files:write reactions:read`
 Events: `app_mention message.im message.channels message.groups`
 Socket Mode: on.
 Slash commands: `/hermes` (dispatcher for all Hermes subcommands — `sethome`, `new`, `status`, `model`, etc.; see the full list inside the sandbox with `/hermes help`).

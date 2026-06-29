@@ -27,6 +27,7 @@
     "scopes": {
       "bot": [
         "chat:write",
+        "commands",
         "app_mentions:read",
         "channels:history",
         "channels:read",
