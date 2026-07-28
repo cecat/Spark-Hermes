@@ -11,6 +11,18 @@ This repo is everything needed to:
 
 For background on *why* this stack (rather than OpenClaw, or n8n, or rolling your own), see [docs/PLATFORM-OPTIONS-2026.6.md](docs/PLATFORM-OPTIONS-2026.6.md) and [docs/COMPARISON-Enhancements-Lessons-vs-Hermes-NemoClaw.md](docs/COMPARISON-Enhancements-Lessons-vs-Hermes-NemoClaw.md).
 
+## Related repos
+
+Four repos, split by ownership. The boundary is deliberate: shared substrate
+below, per-agent integration above.
+
+| Repo | What lives there |
+|---|---|
+| **`spark-fabric`** | Shared substrate: FALDA, embedder, distiller, NATS/Sibline, UMP |
+| **`Spark-Hermes`** *(this one)* | **Gandalf** — Hermes agent + gateway in an NVIDIA OpenShell sandbox, his `soul/` and `skills/`, egress policies, ops scripts |
+| **`spark-ai`** | OpenClaw gateway + vLLM. Shared services — connect/read only, never restart |
+| **`spark-ai-agents`** | **Luoji** — OpenClaw agent folders, runbooks, and notes |
+
 ---
 
 ## I just cloned this. Now what?
