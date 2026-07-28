@@ -39,10 +39,18 @@ REPING_AFTER=1800   # 30 min
 # ── 1. Handle reactions on previously-posted drafts ─────────────────
 # Each posted draft has a sidecar file /sandbox/.hermes/outbox/posted/<id>.json
 # containing the Slack message ts. Poll Slack for reactions on that ts.
-
+#
+# Sidecar GC: if the source pending file no longer exists (manual cleanup, or
+# quarantined by outbox-pending-guard), delete the orphaned sidecar so we stop
+# polling Slack for reactions on a message whose draft is gone.
 POSTED_JSON=$(docker exec -u sandbox "$CONTAINER" sh -c '
   for f in /sandbox/.hermes/outbox/posted/*.json; do
     [ -f "$f" ] || continue
+    id=$(basename "$f" .json)
+    if [ ! -f "/sandbox/.hermes/outbox/pending/${id}.json" ]; then
+      rm -f "$f"
+      continue
+    fi
     echo "=====$f====="
     cat "$f"
   done
@@ -103,13 +111,36 @@ PYEOF
 fi
 
 # ── 2. Find pending drafts and post the ones that haven't been posted yet ───
+# Only .json files that satisfy the email-draft schema (non-empty to/subject/
+# body/reason strings) are eligible. Anything else in pending/ (status files
+# leaked by a cron job, hand-drop notes, README, .gitkeep, etc.) is quarantined
+# to outbox/.trash/ so it can never be posted as an "empty email" approval
+# request. Silent on quarantine — we only care to see something in Slack when
+# a legit draft is queued.
 PENDING=$(docker exec -u sandbox "$CONTAINER" sh -c '
-  for f in /sandbox/.hermes/outbox/pending/*.json; do
+  mkdir -p /sandbox/.hermes/outbox/.trash
+  for f in /sandbox/.hermes/outbox/pending/*; do
     [ -f "$f" ] || continue
+    base=$(basename "$f")
+    case "$base" in
+      README.md|.gitkeep|.gitignore) continue ;;
+    esac
+    if [ "${base##*.}" != "json" ]; then
+      mv "$f" "/sandbox/.hermes/outbox/.trash/$(date -u +%Y%m%dT%H%M%SZ)-nonjson-$base"
+      continue
+    fi
+    if ! jq -e ".to and .subject and .body and .reason
+                and (.to | type == \"string\") and (.to | length > 0)
+                and (.subject | type == \"string\") and (.subject | length > 0)
+                and (.body | type == \"string\") and (.body | length > 0)
+                and (.reason | type == \"string\") and (.reason | length > 0)" \
+                "$f" > /dev/null 2>&1; then
+      mv "$f" "/sandbox/.hermes/outbox/.trash/$(date -u +%Y%m%dT%H%M%SZ)-badschema-$base"
+      continue
+    fi
     id=$(basename "$f" .json)
     posted=/sandbox/.hermes/outbox/posted/${id}.json
     if [ -f "$posted" ]; then
-      # Check age — re-ping if older than threshold
       age=$(($(date +%s) - $(stat -c %Y "$posted")))
       if [ "$age" -lt 1800 ]; then
         continue
