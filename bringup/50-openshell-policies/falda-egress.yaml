@@ -1,0 +1,66 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# Permit egress from the gandalf sandbox to Rick Stevens' FALDA memory service
+# so Gandalf can join the shared-memory fabric his agents (Kukla, Ollie) use.
+#
+# Context — why this host and no other:
+#   Rick was explicit that remote agents get NO access to his home machines and
+#   NO server CLI/SSH. The ONLY sanctioned interface is a hardened public proxy
+#   ("chicago-2"): TLS + bearer token, tenant-clamped, no filesystem behind it.
+#   Kukla verified from her side: /health -> 200 {"ok":true}, and a request with
+#   no token -> 401. Do not add m1-mac-mini:8078 (Rick's home gateway) here.
+#
+# Known API surface (as reported by Kukla, 2026-07):
+#   GET  /health              -> {"ok":true}
+#   POST /stream/add          -> {session_id, messages:[{role,content}]}
+#   plus read-back endpoints (exact paths not yet documented to us)
+#   Auth: Authorization: Bearer <token>, token issued by Ollie with
+#         {tenant: gandalf, pools: [external-demo]} — same shape as crush/somm.
+#
+# ⚠️ TWO OPEN RISKS — read before applying:
+#
+#   1. BARE IP. Every other preset in this directory targets a DNS hostname.
+#      Nothing here has ever used a bare IP, and `openshell-tls-egress` SKILL.md
+#      notes the policy schema supports only subdomain wildcards. It is UNVERIFIED
+#      whether OpenShell accepts an IP literal in `host:`. Separately, the L7
+#      proxy is TLS-inspecting and routes on SNI — an IP-literal connection sends
+#      no SNI hostname, which may fail even if the policy parses.
+#      → PREFERRED FIX: get an FQDN for the chicago-2 proxy from Rick and use it
+#        instead. Swap the `host:` value below and re-apply. Also more durable:
+#        an IP-keyed rule breaks silently if Rick ever re-addresses the box.
+#
+#   2. TLS INSPECTION. The proxy re-signs every cert with
+#      `CN=OpenShell Sandbox CA`. Any Python FALDA client that verifies via
+#      certifi will throw `self-signed certificate in certificate chain` even
+#      after this policy is applied. That is failure mode 1 in the
+#      `openshell-tls-egress` skill — fix with
+#      `/sandbox/.hermes/scripts/inject-openshell-ca.sh`, do NOT disable verification.
+#
+# Apply with: nemohermes gandalf policy-add --from-file <this-file> --yes
+#         or: bash ../../ops/apply-policies.sh
+
+preset:
+  name: falda-egress
+  description: "FALDA shared-memory service via the chicago-2 hardened proxy (TLS + bearer token, tenant-clamped)."
+
+network_policies:
+  falda:
+    name: falda
+    endpoints:
+      # Swap this host for the FQDN once Rick provides one — see risk #1 above.
+      - host: 103.101.203.226
+        port: 8444
+        protocol: rest
+        enforcement: enforce
+        rules:
+          # /health and read-back are GET.
+          - allow: { method: GET, path: "/**" }
+          # /stream/add and other writes are POST.
+          - allow: { method: POST, path: "/**" }
+    binaries:
+      - { path: /usr/local/bin/hermes }
+      - { path: /opt/hermes/.venv/bin/python }
+      - { path: /usr/bin/python3 }
+      - { path: /usr/bin/python3.13 }
+      # curl is required for the verification steps in the FALDA runbook.
+      - { path: /usr/bin/curl }

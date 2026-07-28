@@ -6,7 +6,8 @@
 |---|---|
 | Bring the whole stack up after a reboot (or repair anything that's broken) | `bash start-all.sh` |
 | See if Gandalf is healthy | `bash status.sh` |
-| Push my updated `gandalf/memories/*.md` to the running agent | `bash apply-memories.sh` |
+| Push my updated `gandalf/soul/*.md` to the running agent (renders to `SOUL.md`) | `bash apply-soul.sh` |
+| Preview what `SOUL.md` will contain without uploading | `bash apply-soul.sh --dry-run` |
 | Push my updated `gandalf/skills/*/SKILL.md` to the agent | `bash apply-skills.sh` |
 | Update scheduled jobs after editing the `cron:` block in `~/.hermes/config.yaml` | `bash apply-cron.sh` |
 | Apply custom OpenShell network policies from `bringup/50-openshell-policies/` | `bash apply-policies.sh` |

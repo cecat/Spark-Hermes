@@ -64,7 +64,7 @@ google:
     - https://www.googleapis.com/auth/spreadsheets
     - https://www.googleapis.com/auth/documents
   # gmail.send is intentionally NOT in the default scope list — see
-  # gandalf/memories/30-guardrails.md. Add it back if/when you want Gandalf
+  # gandalf/soul/30-guardrails.md. Add it back if/when you want Gandalf
   # to send mail, then run: bash ops/reauth-google.sh
 
 # ---------------------------------------------------------------------------

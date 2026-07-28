@@ -19,10 +19,17 @@ For background on *why* this stack (rather than OpenClaw, or n8n, or rolling you
 You're a new operator on a fresh DGX Spark. Read [`bringup/README.md`](bringup/README.md) and walk through the numbered files. About 30–60 minutes once prereqs are in place.
 
 ### Change what Gandalf knows about itself, you, or its duties
-Edit a file in [`gandalf/memories/`](gandalf/memories/), then run:
+Edit a file in [`gandalf/soul/`](gandalf/soul/), then run:
 ```
-bash ops/apply-memories.sh
+bash ops/apply-soul.sh
 ```
+These files are concatenated into `~/.hermes/SOUL.md`, which Hermes injects into
+the system prompt every session. Changes land on the next new session (`/new` in
+a chat) — no gateway restart. Use `--dry-run` to preview.
+
+> Formerly `gandalf/memories/` + `apply-memories.sh`, which pushed to a directory
+> Hermes never reads. See [`docs/HERMES-LOAD-PATHS.md`](docs/HERMES-LOAD-PATHS.md)
+> for what actually loads, and verify before inventing a new location.
 
 ### Add a runbook (procedure) Gandalf should follow
 Add a directory under [`gandalf/skills/`](gandalf/skills/) with a `SKILL.md`, then run:
@@ -67,7 +74,7 @@ bash ops/snapshot.sh pre-experiment
 |---|---|
 | `docs/` | Background: plan, platform-options write-up, lessons-learned comparison |
 | `bringup/` | One-time install from a fresh host (numbered 00, 10, 20…) |
-| `gandalf/` | Gandalf's personality (`memories/`) and procedures (`skills/`) — edit these to change his behavior |
+| `gandalf/` | Gandalf's personality (`soul/` → `SOUL.md`) and procedures (`skills/`) — edit these to change his behavior |
 | `ops/` | Apply scripts and runbooks for day-2 operations |
 | `runlog/` | Historical record of how Gandalf was first built (and what we learned) |
 

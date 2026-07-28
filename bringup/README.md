@@ -12,7 +12,7 @@ Walk through the numbered files in order. The whole sequence takes 30–60 minut
 | [`50-openshell-policies/`](50-openshell-policies/) | ~2 min | Apply Google-egress and inference-widen policies |
 | [`60-smoke-tests.sh`](60-smoke-tests.sh) | ~2 min | Verify inference, Gmail search, Drive search, Slack DM all work |
 
-Then `bash ../ops/apply-memories.sh && bash ../ops/apply-skills.sh && bash ../ops/apply-cron.sh` to push everything from this repo into the running sandbox.
+Then `bash ../ops/apply-soul.sh && bash ../ops/apply-skills.sh && bash ../ops/apply-cron.sh` to push everything from this repo into the running sandbox.
 
 ## Operating rules
 

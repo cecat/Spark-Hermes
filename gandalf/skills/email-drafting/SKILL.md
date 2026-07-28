@@ -9,7 +9,7 @@ metadata:
 
 # Email drafting (outbox-first)
 
-This skill is the **only** way Gandalf may originate outbound email. Hermes' built-in `gmail send` tool exists, but the guardrail in `gandalf/memories/30-guardrails.md` forbids calling it inline. Use the outbox flow described here instead.
+This skill is the **only** way Gandalf may originate outbound email. Hermes' built-in `gmail send` tool exists, but the guardrail in `gandalf/soul/30-guardrails.md` (rendered into `SOUL.md`) forbids calling it inline. Use the outbox flow described here instead.
 
 ## Why
 

@@ -199,12 +199,25 @@ echo ""
 echo "=== restoring custom OpenShell policy presets ==="
 bash "$REPO/ops/apply-policies.sh" 2>&1 | tail -5
 
-# ── 5. Hermes cron jobs ────────────────────────────────────────────────
+# ── 5. Agent identity + procedures ─────────────────────────────────────
+# A rebuild wipes the sandbox filesystem, so SOUL.md and the skills tree have
+# to be re-pushed from the repo. Without this the agent comes back with the
+# stock Hermes persona and none of its runbooks — it looks alive but isn't
+# Gandalf. (Added 2026-07-28; previously neither was restored here.)
+echo ""
+echo "=== restoring SOUL.md from gandalf/soul/ ==="
+bash "$REPO/ops/apply-soul.sh" 2>&1 | tail -5
+
+echo ""
+echo "=== restoring skills from gandalf/skills/ ==="
+bash "$REPO/ops/apply-skills.sh" 2>&1 | tail -5
+
+# ── 6. Hermes cron jobs ────────────────────────────────────────────────
 echo ""
 echo "=== reconciling Hermes cron jobs against config.yaml ==="
 bash "$REPO/ops/apply-cron.sh" --yes 2>&1 | tail -10
 
-# ── 6. Smoke test ──────────────────────────────────────────────────────
+# ── 7. Smoke test ──────────────────────────────────────────────────────
 echo ""
 echo "=== smoke test: gmail search from sandbox ==="
 if docker exec -u sandbox -e HERMES_HOME=/sandbox/.hermes -e PYTHONPATH=/sandbox/.hermes/pylibs "$CONTAINER" \

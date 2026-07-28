@@ -8,7 +8,7 @@
 - Slack workspace: `slack.workspace_name` in config.yaml.
 - Home Slack channel for this agent: `slack.home_channel` in config.yaml.
 
-(Apply-memories.sh substitutes these references at push time — see `ops/apply-memories.sh`.)
+(These references are substituted from `~/.hermes/config.yaml` at push time by `ops/apply-soul.sh`.)
 
 ## Other agents the operator may run
 The operator may have other agents running in a separate OpenClaw stack (not under this agent's control, not in this agent's sandbox). Examples documented in `operator.notes` of `~/.hermes/config.yaml`.

@@ -1,82 +1,37 @@
 #!/usr/bin/env bash
-# Push gandalf/memories/*.md into /sandbox/.hermes/memories/.
+# RETIRED 2026-07-28 — this script did nothing useful for six weeks.
 #
-# Substitution: any ${a.b.c} in a memory file gets replaced with the matching
-# value from ~/.hermes/config.yaml before upload. That lets memories in the
-# repo refer to operator-specific values (operator.name, slack.home_channel, etc.)
-# without hard-coding them.
+# It pushed gandalf/memories/*.md into /sandbox/.hermes/memories/.
+# NOTHING IN HERMES READS THAT DIRECTORY.
 #
-# Idempotent: re-running with no edits is a no-op.
+# Verified against Hermes v0.14.0 source:
+#   MemoryStore.load_from_disk()  (tools/memory_tool.py:126-132)
+#   opens ONLY the hard-coded filenames MEMORY.md and USER.md. No glob, no
+#   numeric-prefix scan, and no config key anywhere in Hermes that would add
+#   more. Every 00-identity.md / 30-guardrails.md uploaded by this script was
+#   inert on arrival.
 #
-# Flags:
-#   --dry-run   Show what would be uploaded without uploading.
+# The replacement is ops/apply-soul.sh, which renders the same source files
+# (now in gandalf/soul/) into /sandbox/.hermes/SOUL.md — a path Hermes really
+# does load, on every agent construction, with a 20,000-char budget.
+#
+# Full map of what loads and what doesn't: docs/HERMES-LOAD-PATHS.md
+#
+# This stub is kept rather than deleted so that anything still calling the old
+# name — a runbook, post-rebuild.sh, a person, or the agent itself — gets an
+# explanation instead of "command not found".
 set -eu
-. "$(dirname "$0")/_lib.sh"
-ensure_path
-require_hermes_config
 
-DRY=0
-[ "${1:-}" = "--dry-run" ] && DRY=1
+cat >&2 <<'EOF'
 
-REPO=$(repo_root)
-SRC="$REPO/gandalf/memories"
-DST=/sandbox/.hermes/memories
-AGENT=$(hermes_cfg agent.name)
-CONTAINER=$(gandalf_container)
-STAGING=$(mktemp -d)
-trap 'rm -rf "$STAGING"' EXIT
+  apply-memories.sh is retired and does nothing.
 
-[ -d "$SRC" ] || fail "No memories directory at $SRC"
-FILES=$(find "$SRC" -maxdepth 1 -type f -name '*.md' | sort)
-[ -n "$FILES" ] || { note "No .md files in $SRC; nothing to push."; exit 0; }
+  Reason: /sandbox/.hermes/memories/ is read by no Hermes code path. Files
+  pushed there never reached the agent. See docs/HERMES-LOAD-PATHS.md.
 
-note "Source: $SRC"
-note "Target: $CONTAINER:$DST"
+  Use instead:
+      bash ops/apply-soul.sh              # push gandalf/soul/ -> SOUL.md
+      bash ops/apply-soul.sh --dry-run    # preview without uploading
 
-# Render each memory through config-substitution into a staging file.
-for f in $FILES; do
-  base=$(basename "$f")
-  python3 - "$f" "$HERMES_CONFIG" "$STAGING/$base" <<'PYEOF'
-import re, sys, yaml
-src, cfg_path, out = sys.argv[1], sys.argv[2], sys.argv[3]
-cfg = yaml.safe_load(open(cfg_path))
-def sub(m):
-    key = m.group(1); cur = cfg
-    for k in key.split('.'):
-        cur = cur.get(k) if isinstance(cur, dict) else None
-        if cur is None: return m.group(0)
-    return str(cur)
-text = re.sub(r'\$\{([a-zA-Z0-9_.]+)\}', sub, open(src).read())
-open(out, 'w').write(text)
-PYEOF
-done
-
-# Compute remote hashes of currently-installed memories
-REMOTE_HASHES=$(docker exec -u sandbox "$CONTAINER" sh -c "cd $DST 2>/dev/null && sha256sum *.md 2>/dev/null" || echo "")
-
-CHANGES=0
-for f in $STAGING/*.md; do
-  base=$(basename "$f")
-  local_h=$(sha256sum "$f" | awk '{print $1}')
-  remote_h=$(echo "$REMOTE_HASHES" | awk -v n="$base" '$2==n {print $1; exit}')
-  if [ "$local_h" = "$remote_h" ]; then
-    info "unchanged: $base"
-  else
-    CHANGES=$((CHANGES + 1))
-    if [ "$DRY" -eq 1 ]; then
-      warn "would push: $base"
-    else
-      openshell sandbox upload "$AGENT" "$f" "$DST/$base" >/dev/null && info "pushed:    $base" || fail "upload failed for $base"
-    fi
-  fi
-done
-
-if [ "$DRY" -eq 1 ]; then
-  note "Dry run: $CHANGES file(s) would be pushed."
-else
-  if [ "$CHANGES" -eq 0 ]; then
-    info "All memories already in sync."
-  else
-    info "Pushed $CHANGES file(s). Hermes picks up memory changes on the next turn — no restart needed."
-  fi
-fi
+EOF
+exit 1
