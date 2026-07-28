@@ -33,6 +33,18 @@ docker exec -u sandbox "$CONTAINER" sh -c '
   done
 ' || fail "Could not initialize outbox tree"
 
+# Preflight: section 2 validates every pending draft with `jq` and quarantines
+# anything that fails. If jq is missing, that test fails for EVERY file and we
+# would silently move all legitimate drafts to outbox/.trash/ — no error, no
+# Slack message, just permanent silence that looks exactly like "no drafts
+# pending". This script is the human gate on outbound email; silent failure is
+# the one mode it must not have. So check once, loudly, before touching anything.
+docker exec -u sandbox "$CONTAINER" sh -c 'command -v jq >/dev/null 2>&1' \
+  || fail "jq is not installed in the sandbox.
+Refusing to run: the pending-draft schema check in section 2 would quarantine
+every valid draft to outbox/.trash/ without reporting anything.
+Fix: install jq in the sandbox image, then re-run."
+
 # Repost-threshold: if a draft is still pending after this many seconds, re-ping.
 REPING_AFTER=1800   # 30 min
 
@@ -40,9 +52,11 @@ REPING_AFTER=1800   # 30 min
 # Each posted draft has a sidecar file /sandbox/.hermes/outbox/posted/<id>.json
 # containing the Slack message ts. Poll Slack for reactions on that ts.
 #
-# Sidecar GC: if the source pending file no longer exists (manual cleanup, or
-# quarantined by outbox-pending-guard), delete the orphaned sidecar so we stop
-# polling Slack for reactions on a message whose draft is gone.
+# Sidecar GC: if the source pending file no longer exists — manual cleanup, or
+# quarantined to outbox/.trash/ by the schema check in section 2 below — delete
+# the orphaned sidecar so we stop polling Slack for reactions on a message whose
+# draft is gone. (Quarantine happens after this section runs, so a quarantined
+# draft's sidecar is collected on the following pass.)
 POSTED_JSON=$(docker exec -u sandbox "$CONTAINER" sh -c '
   for f in /sandbox/.hermes/outbox/posted/*.json; do
     [ -f "$f" ] || continue
@@ -117,7 +131,7 @@ fi
 # to outbox/.trash/ so it can never be posted as an "empty email" approval
 # request. Silent on quarantine — we only care to see something in Slack when
 # a legit draft is queued.
-PENDING=$(docker exec -u sandbox "$CONTAINER" sh -c '
+PENDING=$(docker exec -u sandbox -e REPING_AFTER="$REPING_AFTER" "$CONTAINER" sh -c '
   mkdir -p /sandbox/.hermes/outbox/.trash
   for f in /sandbox/.hermes/outbox/pending/*; do
     [ -f "$f" ] || continue
@@ -141,8 +155,11 @@ PENDING=$(docker exec -u sandbox "$CONTAINER" sh -c '
     id=$(basename "$f" .json)
     posted=/sandbox/.hermes/outbox/posted/${id}.json
     if [ -f "$posted" ]; then
+      # Check age — re-ping if older than threshold (REPING_AFTER, passed in
+      # via -e above; previously hardcoded here, so changing the variable at
+      # the top of this script had no effect).
       age=$(($(date +%s) - $(stat -c %Y "$posted")))
-      if [ "$age" -lt 1800 ]; then
+      if [ "$age" -lt "${REPING_AFTER:-1800}" ]; then
         continue
       fi
       echo "REPING===$f"
