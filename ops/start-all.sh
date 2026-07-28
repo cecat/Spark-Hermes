@@ -259,7 +259,8 @@ ensure_sandbox() {
     # doesn't exist at all, that's a bringup issue, not a daily-restore issue.
     if openshell sandbox list 2>/dev/null | grep -q '^gandalf'; then
         warn "sandbox exists but not Ready — running nemohermes gandalf recover"
-        nemohermes gandalf recover 2>&1 | head -5 || true
+        nohup nemohermes gandalf recover >>"$HOME/code/Spark-Hermes/runlog/recover.log" 2>&1 &
+        disown || true
         sleep 5
         if sandbox_ready; then info "sandbox phase: Ready"; return; fi
     fi
@@ -279,7 +280,8 @@ ensure_hermes_gateway() {
 
     # Common cause: forward died but sandbox is fine. nemohermes recover fixes it.
     warn "gateway not responding — running nemohermes gandalf recover"
-    nemohermes gandalf recover 2>&1 | head -5 || true
+    nohup nemohermes gandalf recover >>"$HOME/code/Spark-Hermes/runlog/recover.log" 2>&1 &
+    disown || true
     sleep 5
 
     if wait_for "Hermes gateway warming up" 60 hermes_gateway_healthy; then
