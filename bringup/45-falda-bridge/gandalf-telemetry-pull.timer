@@ -1,0 +1,13 @@
+[Unit]
+Description=Periodically pull FALDA provider telemetry from the Gandalf sandbox
+
+[Timer]
+# Every 5 minutes while the box is up, plus shortly after boot. Telemetry is
+# append-only research data; 5 min bounds worst-case loss to one interval if a
+# rebuild happens between ticks.
+OnBootSec=2min
+OnUnitActiveSec=5min
+Persistent=true
+
+[Install]
+WantedBy=timers.target

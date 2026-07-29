@@ -1,0 +1,9 @@
+name: falda
+version: 0.1.0
+description: >
+  FALDA long-term memory provider for Gandalf, built as an experimental
+  apparatus (Phase 5c). Recall (prefetch + core block) and two tools
+  (falda_share, falda_search) are each independently config-gated via
+  condition.yaml. sync_turn is a no-op; the host-side shadow tap remains the
+  sole writer to tenant=gandalf. Per-turn telemetry is written to
+  $HERMES_HOME/telemetry/.

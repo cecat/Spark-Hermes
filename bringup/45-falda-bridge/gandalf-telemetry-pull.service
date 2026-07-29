@@ -1,0 +1,12 @@
+[Unit]
+Description=Pull FALDA provider telemetry out of the Gandalf sandbox to ~/.falda/telemetry
+After=docker.service
+Wants=docker.service
+
+[Service]
+Type=oneshot
+# Copies /sandbox/.hermes/telemetry/*.jsonl (overlay, rebuild-wiped) to the
+# durable host dir. Triggered by the paired .timer.
+ExecStart=/usr/bin/bash %h/code/Spark-Hermes/ops/pull-telemetry.sh
+StandardOutput=append:%h/.falda/telemetry-pull.log
+StandardError=append:%h/.falda/telemetry-pull.log

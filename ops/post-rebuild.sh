@@ -212,6 +212,16 @@ echo ""
 echo "=== restoring skills from gandalf/skills/ ==="
 bash "$REPO/ops/apply-skills.sh" 2>&1 | tail -5
 
+# ── 5b. FALDA memory provider (Phase 5c) ───────────────────────────────
+# A rebuild wipes both the plugin (overlay) and memory.provider (config.yaml),
+# so re-push the plugin AND re-activate it — otherwise Gandalf comes back with
+# no external memory even though the tap keeps feeding FALDA. The active
+# experiment condition lives in the versioned condition.yaml, which is restored
+# with the plugin, so re-activating restores the pre-rebuild functional state.
+echo ""
+echo "=== restoring FALDA memory provider from gandalf/plugins/falda/ ==="
+bash "$REPO/ops/apply-memory-provider.sh" --activate 2>&1 | tail -6
+
 # ── 6. Hermes cron jobs ────────────────────────────────────────────────
 echo ""
 echo "=== reconciling Hermes cron jobs against config.yaml ==="
