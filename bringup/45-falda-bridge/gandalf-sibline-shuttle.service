@@ -1,0 +1,17 @@
+[Unit]
+Description=Gandalf Sibline sandbox shuttle (host staging <-> /sandbox/.hermes/sibline via docker exec)
+After=docker.service network-online.target sibline-bridge-gandalf.service
+Wants=network-online.target
+# Pairs with spark-fabric sibline-bridge-gandalf.service: the bridge speaks NATS
+# and stages messages in ~/.sibline; this shuttle crosses the sandbox boundary.
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/bash %h/code/Spark-Hermes/ops/sibline-shuttle.sh
+Restart=always
+RestartSec=10
+StandardOutput=append:%h/.sibline/logs/sibline-shuttle-gandalf.out
+StandardError=append:%h/.sibline/logs/sibline-shuttle-gandalf.out
+
+[Install]
+WantedBy=default.target
