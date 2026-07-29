@@ -12,15 +12,15 @@
 # Committed default = Step A baseline: provider PRESENT, everything OFF.
 # This isolates "provider loaded" from "recall active".
 
-condition_label: "5c-B-prefetch-on"
+condition_label: "5c-live-full"
 
 # --- recall (each independent) ---
 prefetch_enabled: true
 system_prompt_block_enabled: false
 
 # --- tools (each independent — do NOT couple to prefetch) ---
-share_tool_enabled: false
-search_tool_enabled: false
+share_tool_enabled: true
+search_tool_enabled: true
 
 # --- prefetch shape (used only when prefetch_enabled) ---
 prefetch_tiers: [stream, atoms]   # subset of {stream, atoms}
