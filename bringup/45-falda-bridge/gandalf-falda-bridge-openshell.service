@@ -1,0 +1,18 @@
+[Unit]
+Description=Gandalf FALDA host bridge (socat 172.19.0.1:8077 -> host loopback 127.0.0.1:8077)
+After=docker.service network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+# FALDA binds 127.0.0.1 only (no auth — loopback is the isolation boundary).
+# The gandalf sandbox reaches the host solely via the bridge gateway 172.19.0.1,
+# so expose FALDA there — same shape as the vLLM/litellm/argo bridges. This is a
+# docker-bridge interface, NOT off-box; the OpenShell L7 egress policy still gates
+# which binary may talk to it.
+ExecStart=/usr/bin/socat TCP-LISTEN:8077,bind=172.19.0.1,fork,reuseaddr TCP:127.0.0.1:8077
+Restart=on-failure
+RestartSec=3
+
+[Install]
+WantedBy=default.target

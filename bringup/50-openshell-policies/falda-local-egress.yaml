@@ -1,0 +1,62 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# Permit egress from the gandalf sandbox to the LOCAL FALDA memory service on
+# the host, so Gandalf's FALDA memory provider (phase 5c) can read/write the
+# shared-memory fabric (tenant gandalf, pool shared-corpus).
+#
+# ⚠️ Do NOT confuse this with `falda-egress.yaml` in this directory — that one
+# targets Rick Stevens' REMOTE proxy (103.101.203.226:8444) and is a separate,
+# unrelated fabric. This file is the SELF-HOSTED FALDA on spark-960b.
+#
+# Path & enforcement model (verified 2026-07-28):
+#   FALDA binds 127.0.0.1:8077 on the host (no auth — loopback is its isolation
+#   boundary). The sandbox reaches the host only via the bridge gateway
+#   172.19.0.1, which `host.openshell.internal` resolves to. A socat unit
+#   (Spark-Hermes/bringup/45-falda-bridge/gandalf-falda-bridge-openshell.service)
+#   exposes 172.19.0.1:8077 -> 127.0.0.1:8077.
+#
+#   The Hermes gateway process forces ALL egress through the OpenShell L7 proxy
+#   (10.200.0.1:3128), which enforces this policy per-binary. Without this preset
+#   the proxy returns 403 {"error":"policy_denied"} even though the socat bridge
+#   is up. (A bare `docker exec curl` bypasses the proxy and is NOT a valid test
+#   of enforcement — verify THROUGH the proxy; see the runbook.)
+#
+#   `allowed_ips` is REQUIRED: OpenShell's SSRF guard rejects private
+#   host-gateway IPs unless the resolved address is explicitly allowlisted.
+#   Mirrors the built-in `local-inference` blueprint preset exactly (same host,
+#   same allowed_ips, plain `protocol: rest` — the proxy speaks HTTP to FALDA).
+#
+# Apply with: nemohermes gandalf policy-add --from-file <this-file> --yes
+#   (Do NOT use ops/apply-policies.sh — it would also apply the REMOTE
+#    falda-egress.yaml, which is not wanted here.)
+
+preset:
+  name: falda-local-egress
+  description: "Local self-hosted FALDA memory service on host.openshell.internal:8077 (loopback FALDA via socat bridge; no auth, loopback-isolated)."
+
+network_policies:
+  falda_local:
+    name: falda_local
+    endpoints:
+      - host: host.openshell.internal
+        port: 8077
+        protocol: rest
+        enforcement: enforce
+        allowed_ips:
+          # OpenShell's SSRF guard rejects private host-gateway IPs unless the
+          # resolved address is explicitly allowlisted (172.19.0.1 is in 172.16/12).
+          - 10.0.0.0/8
+          - 172.16.0.0/12
+          - 192.168.0.0/16
+        rules:
+          # FALDA reads (/healthz, /core/read, search) are GET.
+          - allow: { method: GET, path: "/**" }
+          # FALDA writes (/stream/add, /*/search POST bodies) are POST.
+          - allow: { method: POST, path: "/**" }
+    binaries:
+      # The memory provider runs inside the Hermes gateway venv.
+      - { path: /opt/hermes/.venv/bin/python }
+      - { path: /usr/local/bin/hermes }
+      - { path: /usr/bin/python3 }
+      # curl is used by the phase-5a verification steps.
+      - { path: /usr/bin/curl }
