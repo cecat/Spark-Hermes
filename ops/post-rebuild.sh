@@ -222,6 +222,27 @@ echo ""
 echo "=== restoring FALDA memory provider from gandalf/plugins/falda/ ==="
 bash "$REPO/ops/apply-memory-provider.sh" --activate 2>&1 | tail -6
 
+# ── 5c. Sibline sandbox bridge (Phase 8b) ──────────────────────────────
+# A rebuild wipes the overlay /sandbox/.hermes/sibline/ tree AND changes the
+# container id. The host-side broker + bridge survive (they're --user services),
+# but the docker-exec shuttle caches the container name at launch, so it must be
+# restarted to bind to the new container and recreate the sandbox-side tree.
+# (The 5a FALDA egress preset is restored by apply-policies.sh in step 4 above;
+# the sibline broker is loopback host-side and needs no sandbox egress.)
+echo ""
+echo "=== restarting Gandalf Sibline shuttle (rebinds to new container, recreates sandbox tree) ==="
+if systemctl --user list-unit-files gandalf-sibline-shuttle.service >/dev/null 2>&1; then
+  systemctl --user restart gandalf-sibline-shuttle.service 2>&1 | tail -2
+  sleep 3
+  if docker exec -u sandbox "$CONTAINER" sh -c 'test -d /sandbox/.hermes/sibline/outbox' 2>/dev/null; then
+    info "sibline sandbox tree present (/sandbox/.hermes/sibline/)"
+  else
+    warn "sibline sandbox tree missing — check gandalf-sibline-shuttle.service"
+  fi
+else
+  warn "gandalf-sibline-shuttle.service not installed — see spark-fabric services/sibline-bridge"
+fi
+
 # ── 6. Hermes cron jobs ────────────────────────────────────────────────
 echo ""
 echo "=== reconciling Hermes cron jobs against config.yaml ==="
