@@ -85,19 +85,51 @@ litellm_healthy() {
     [ "$code" = "200" ]
 }
 
-# Sandbox container exists and reports Ready.
+# The OpenShell docker-driver gateway daemon (127.0.0.1:8080) does NOT autostart
+# at boot. While it's down every `openshell` call fails with "transport error /
+# Connection refused", which is indistinguishable from "sandbox doesn't exist"
+# unless you check for it explicitly.
+openshell_daemon_up() {
+    openshell sandbox list >/dev/null 2>&1
+}
+
+# `nemohermes gandalf status` starts the daemon as a side effect.
+ensure_openshell_daemon() {
+    openshell_daemon_up && return 0
+    warn "OpenShell gateway daemon not responding — starting it"
+    nemohermes gandalf status >/dev/null 2>&1 || true
+    wait_for "OpenShell daemon warming up" 30 openshell_daemon_up
+}
+
+# Sandbox phase, or empty if the daemon is unreachable. Callers must distinguish
+# "" (can't tell) from "Error"/"Ready".
+sandbox_phase() {
+    openshell sandbox list 2>/dev/null | awk '/^gandalf/ {print $NF}' | sed 's/\x1b\[[0-9;]*m//g'
+}
+
 sandbox_ready() {
-    local phase
-    phase=$(openshell sandbox list 2>/dev/null | awk '/^gandalf/ {print $NF}' | sed 's/\x1b\[[0-9;]*m//g')
-    [ "$phase" = "Ready" ]
+    [ "$(sandbox_phase)" = "Ready" ]
+}
+
+# The api_server gained an auth key (platforms.api_server.extra.key) with the
+# phase0 work; without the bearer token every request is a 401. Same file
+# ops/phase0-runner.py treats as canonical.
+API_KEY_FILE="$HOME/.config/falda/phase0-api-key.env"
+gateway_auth_header() {
+    [ -f "$API_KEY_FILE" ] || return 0
+    local k
+    k=$(sed -n 's/^API_SERVER_KEY=//p' "$API_KEY_FILE" | head -1)
+    [ -n "$k" ] && printf 'Authorization: Bearer %s' "$k"
 }
 
 # Hermes Agent gateway returns a model list AND a real chat round-trip works.
 hermes_gateway_healthy() {
-    curl -sf --max-time 5 "http://127.0.0.1:8642/v1/models" >/dev/null 2>&1 || return 1
+    local auth; auth=$(gateway_auth_header)
+    curl -sf --max-time 5 -H "$auth" "http://127.0.0.1:8642/v1/models" >/dev/null 2>&1 || return 1
     local code
-    code=$(curl -sS -o /dev/null -w '%{http_code}' --max-time 30 \
+    code=$(curl -sS -o /dev/null -w '%{http_code}' --max-time 60 \
         -X POST "http://127.0.0.1:8642/v1/chat/completions" \
+        -H "$auth" \
         -H "Content-Type: application/json" \
         -d '{"model":"hermes-agent","max_tokens":5,"messages":[{"role":"user","content":"hi"}]}' \
         2>/dev/null || echo "000")
@@ -250,9 +282,32 @@ ensure_sandbox() {
         fail "openshell CLI not found — run bringup/10-install-nemoclaw.sh"
     fi
 
+    ensure_openshell_daemon || fail "OpenShell gateway daemon (127.0.0.1:8080) would not start — check ~/.local/state/nemoclaw/openshell-docker-gateway/openshell-gateway.log"
+
     if sandbox_ready; then
         info "sandbox phase: Ready"
         return
+    fi
+
+    # A host reboot SIGKILLs the container (exit 137). Its restart policy is
+    # unless-stopped, but a clean shutdown counts as "stopped", so Docker never
+    # brings it back and OpenShell latches Phase=Error/ContainerExited forever.
+    #
+    # This MUST be `docker start` on the existing container, never a recreate or
+    # `nemohermes gandalf rebuild`: the sandbox has NO bind mounts, so all of
+    # /sandbox/.hermes (including the hand-injected platforms.* blocks that make
+    # Slack/Telegram inbound work) lives only in its writable layer.
+    local stopped
+    # `|| true`: no match is the normal "nothing to recover" case, but grep's
+    # exit 1 would trip set -e and abort before the diagnostic below.
+    stopped=$(docker ps -a --filter 'status=exited' --format '{{.Names}}' 2>/dev/null | grep '^openshell-gandalf-' | head -1 || true)
+    if [ -n "$stopped" ]; then
+        warn "sandbox container exited — starting it (NOT rebuilding: state lives in its writable layer)"
+        docker start "$stopped" >/dev/null || fail "docker start $stopped failed"
+        if wait_for "sandbox coming up" 60 sandbox_ready; then
+            echo ""; info "sandbox phase: Ready"; return
+        fi
+        echo ""
     fi
 
     # Sandbox exists but not Ready — try recover (gateway restart). If it
@@ -265,7 +320,8 @@ ensure_sandbox() {
         if sandbox_ready; then info "sandbox phase: Ready"; return; fi
     fi
 
-    fail "gandalf sandbox missing or unrecoverable. See bringup/10-install-nemoclaw.sh."
+    local phase; phase=$(sandbox_phase)
+    fail "gandalf sandbox missing or unrecoverable (phase: ${phase:-unknown}). See bringup/10-install-nemoclaw.sh."
 }
 
 # ── Layer 5: Hermes Agent gateway (inside sandbox, port 8642) ───────────────
@@ -276,6 +332,20 @@ ensure_hermes_gateway() {
     if hermes_gateway_healthy; then
         info "Hermes gateway healthy (round-trip via LiteLLM returned 200)"
         return
+    fi
+
+    # Most common cause after a reboot: the sandbox is fine and `hermes gateway
+    # run` is still alive inside it, but the host-side port forward points at a
+    # pre-reboot PID and shows as "dead". Re-establishing the forward is far
+    # cheaper (and less risky) than a full recover, so try that first.
+    if openshell forward list 2>/dev/null | grep -q '8642.*dead'; then
+        warn "port forward 8642 is dead — restarting it"
+        openshell forward stop 8642 gandalf >/dev/null 2>&1 || true
+        openshell forward start -d 8642 gandalf >/dev/null 2>&1 || true
+        if wait_for "port forward reconnecting" 30 hermes_gateway_healthy; then
+            echo ""; info "Hermes gateway ready (port forward restored)"; return
+        fi
+        echo ""
     fi
 
     # Common cause: forward died but sandbox is fine. nemohermes recover fixes it.

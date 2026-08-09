@@ -4,7 +4,8 @@
 
 | I want to… | Run this |
 |---|---|
-| Bring the whole stack up after a reboot (or repair anything that's broken) | `bash start-all.sh` |
+| Bring the whole **host** up after a reboot (all 5 layers, spans repos) | `~/start-all.sh` — lives in the `DGX-Spark` repo |
+| Bring up / repair the **Gandalf layer only** (sandbox, LiteLLM, Hermes gateway) | `bash start-all.sh` |
 | See if Gandalf is healthy | `bash status.sh` |
 | Push my updated `gandalf/soul/*.md` to the running agent (renders to `SOUL.md`) | `bash apply-soul.sh` |
 | Preview what `SOUL.md` will contain without uploading | `bash apply-soul.sh --dry-run` |
