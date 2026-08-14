@@ -29,6 +29,10 @@ warn()  { printf "${YELLOW}[…]${NC} %s\n" "$*"; }
 fail()  { printf "${RED}[✗]${NC} %s\n" "$*" >&2; exit 1; }
 note()  { printf "${CYAN}[i]${NC} %s\n" "$*"; }
 
+# Distinct from the generic failure exit 1 so callers can tell "argo-shim is
+# down, a human must run ~/start-all.sh" apart from a real stack fault.
+EXIT_ARGO_DOWN=3
+
 # Ensure CLIs on PATH
 case ":$PATH:" in *:"$HOME/.local/bin":*) ;; *) export PATH="$HOME/.local/bin:$PATH" ;; esac
 
@@ -36,8 +40,11 @@ case ":$PATH:" in *:"$HOME/.local/bin":*) ;; *) export PATH="$HOME/.local/bin:$P
 export XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
 export DBUS_SESSION_BUS_ADDRESS="${DBUS_SESSION_BUS_ADDRESS:-unix:path=$XDG_RUNTIME_DIR/bus}"
 
+# Overridable so the argo-down path can be exercised against a dead port
+# without touching the real shim on 44497.
+ARGO_PORT="${ARGO_PORT:-44497}"
+
 # Tracking flags so a lower-layer restart can cascade upward
-ARGO_RESTARTED=false
 VLLM_BRIDGES_RESTARTED=false
 LITELLM_RESTARTED=false
 
@@ -62,7 +69,7 @@ wait_for() {
 argo_shim_healthy() {
     local code
     code=$(curl -sS -o /dev/null -w '%{http_code}' --max-time 10 \
-        -X POST "http://127.0.0.1:44497/v1/messages" \
+        -X POST "http://127.0.0.1:${ARGO_PORT}/v1/messages" \
         -H "Content-Type: application/json" \
         -d '{"model":"claudehaiku45","max_tokens":5,"messages":[{"role":"user","content":"hi"}]}' \
         2>/dev/null || echo "000")
@@ -136,42 +143,40 @@ hermes_gateway_healthy() {
     [ "$code" = "200" ]
 }
 
-# ── Layer 0: argo-shim (SSH tunnel to Argonne) ──────────────────────────────
+# ── Layer 0: argo-shim (VERIFY ONLY — this script does not own it) ──────────
+#
+# Layer 1 owner is ~/start-all.sh. This script used to start and pkill the shim
+# itself, which was wrong: the probe is a live LLM round-trip over an SSH tunnel
+# to Argonne, so ordinary latency reads as "dead" and a single failed sample was
+# enough to kill a healthy shim. argo-shim's ssh uses BatchMode=yes and cannot
+# re-auth on its own, and its SSHAttemptTracker exists because CSPO blocks the
+# source IP after repeated failed auth — so a stray killer is expensive.
+#
+# Verify, never start, never kill.
 
 ensure_argo_shim() {
-    echo ""; echo "=== argo-shim (127.0.0.1:44497) ==="
+    echo ""; echo "=== argo-shim (127.0.0.1:${ARGO_PORT}) — verify only ==="
 
-    if ss -tlnp 2>/dev/null | grep -q "127.0.0.1:44497 " && argo_shim_healthy; then
+    if argo_shim_healthy; then
         info "argo-shim healthy (Argo round-trip returns 200)"
         return
     fi
 
-    if ss -tlnp 2>/dev/null | grep -q "127.0.0.1:44497 "; then
-        warn "argo-shim listening but failing health check — restarting"
-        pkill -f "argo-shim --port 44497" 2>/dev/null || true
-        sleep 1
+    warn "argo-shim probe failed — re-confirming for 20s before declaring it down"
+    if wait_for "re-confirming argo-shim" 20 argo_shim_healthy; then
+        echo ""; info "argo-shim healthy (recovered on re-probe — first sample was a blip)"
+        return
     fi
 
-    command -v argo-shim >/dev/null 2>&1 || fail "argo-shim not on PATH"
-
-    warn "Starting argo-shim... (Duo may prompt on this terminal)"
-    nohup argo-shim --port 44497 --no-auth >> "$HOME/code/spark-ai/argo-shim.log" 2>&1 &
-    disown || true
-
-    # Quiet window: ssh tunnel cold-start prompts for Duo on the TTY.
-    echo "    ↳ If Duo prompts on this terminal, enter your passcode now."
-    echo "      (waiting 20s before health-check progress starts)"
-    sleep 20
-
-    if wait_for "argo-shim warming up (incl. SSH tunnel)" 90 argo_shim_healthy; then
-        echo ""; info "argo-shim ready"
-        ARGO_RESTARTED=true
-    else
-        echo ""
-        echo "Last 20 lines of $HOME/code/spark-ai/argo-shim.log:"
-        tail -20 "$HOME/code/spark-ai/argo-shim.log" 2>&1 || true
-        fail "argo-shim did not become healthy within 90s"
-    fi
+    # LiteLLM and the Hermes gateway both route through the shim, so continuing
+    # would report derived failures and restart healthy services. Stop here.
+    echo ""
+    echo "Last 20 lines of $HOME/code/spark-ai/argo-shim.log:"
+    tail -20 "$HOME/code/spark-ai/argo-shim.log" 2>&1 || true
+    echo ""
+    warn "argo-shim is DOWN, and this script is not its owner."
+    warn "Run the Layer 1 owner from an interactive terminal:  ~/start-all.sh"
+    exit "$EXIT_ARGO_DOWN"
 }
 
 # ── Layer 1: vLLM reachability (we don't manage the container itself) ───────
@@ -240,11 +245,27 @@ ensure_bridges() {
 ensure_litellm() {
     echo ""; echo "=== LiteLLM proxy (127.0.0.1:4000) ==="
 
+    # Set when the health probe recovers on a second look, so the restart
+    # branch below is skipped without also skipping the bridge check that
+    # follows this block.
+    local litellm_ok=false
     if systemctl --user is-active gandalf-litellm.service >/dev/null 2>&1 && litellm_healthy; then
         info "LiteLLM healthy (Claude round-trip returns 200)"
-    else
+        litellm_ok=true
+    elif systemctl --user is-active gandalf-litellm.service >/dev/null 2>&1; then
+        # Re-confirm before restarting: litellm_healthy round-trips through
+        # argo-shim to Argonne, so upstream latency looks like a dead proxy.
+        warn "LiteLLM health failed — re-confirming for 20s before restarting"
+        if wait_for "re-confirming LiteLLM" 20 litellm_healthy; then
+            echo ""; info "LiteLLM healthy (recovered on re-probe — not restarting)"
+            litellm_ok=true
+        fi
+    fi
+
+    if ! $litellm_ok; then
         if systemctl --user is-active gandalf-litellm.service >/dev/null 2>&1; then
-            warn "LiteLLM active but health failed — restarting"
+            echo ""
+            warn "LiteLLM confirmed unhealthy — restarting"
             systemctl --user restart gandalf-litellm.service
         else
             warn "Starting LiteLLM..."
