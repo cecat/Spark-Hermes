@@ -46,6 +46,34 @@ model_list:
       model: anthropic/claudehaiku45
       api_base: http://127.0.0.1:44497/argoapi
       api_key: dummy-not-used-by-argo
+  # ── mathom experiment pins (2026-08-04) ────────────────────────────────
+  # Agent model 1 (Phase 0 + primary block). Pinned; do NOT track "latest".
+  - model_name: claudeopus48
+    litellm_params:
+      model: anthropic/claudeopus48
+      api_base: http://127.0.0.1:44497/argoapi
+      api_key: dummy-not-used-by-argo
+  # Agent model 2 (Phase 3). Same model SRA-Bench reports at +33.0pp.
+  # STATUS 2026-08-04: route does NOT work -- LiteLLM's openai adapter returns
+  # "Connection error" against the shim. Direct calls to
+  # http://127.0.0.1:44497/argoapi/v1/chat/completions DO work, but require a
+  # "user": "<anl-username>" field (Argo auth) that Claude models do not need.
+  # Not needed for Phase 0 (Opus 4.8 only). MUST be fixed before Phase 3.
+  - model_name: gpt54
+    litellm_params:
+      model: openai/gpt54
+      api_base: http://127.0.0.1:44497/argoapi
+      api_key: dummy-not-used-by-argo
+      user: catlett
+  # Probe authoring ONLY - third vendor, outside both lineages under test.
+  # Same LiteLLM limitation as gpt54; probe authoring calls the shim directly.
+  - model_name: gemini25pro
+    litellm_params:
+      model: openai/gemini25pro
+      api_base: http://127.0.0.1:44497/argoapi
+      api_key: dummy-not-used-by-argo
+      user: catlett
+
 
   # Default Hermes routes to whatever model_name is "hermes-agent"; alias so
   # that name resolves to Claude Opus.
