@@ -150,7 +150,10 @@ hermes_gateway_healthy() {
 # to Argonne, so ordinary latency reads as "dead" and a single failed sample was
 # enough to kill a healthy shim. argo-shim's ssh uses BatchMode=yes and cannot
 # re-auth on its own, and its SSHAttemptTracker exists because CSPO blocks the
-# source IP after repeated failed auth — so a stray killer is expensive.
+# source IP after repeated failed auth — so a stray killer is expensive. Since
+# argo-shim 0.3.20 that tracker persists to ~/.claude/argo-shim-state.json and
+# survives restarts, so repeated failures escalate to a cooldown and hard lock
+# rather than resetting with each new process.
 #
 # Verify, never start, never kill.
 
