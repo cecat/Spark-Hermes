@@ -104,3 +104,13 @@ operator:
   notes: |
     Used in Gandalf's people memory and in cron-job outputs that address
     you by name. Not a credential.
+
+# ---------------------------------------------------------------------------
+# Telegram — optional; only if the agent is in a shared group chat
+# ---------------------------------------------------------------------------
+# Referenced from gandalf/soul/*.md as ${telegram.group_chat} and
+# ${telegram.group_members}. Kept here rather than inline in the soul files
+# because the repo is public and a chat ID identifies a real group.
+telegram:
+  group_chat: "-1001234567890"      # Telegram group chat ID (negative for groups)
+  group_members: Alice and Bob, plus the agents Foo and Bar

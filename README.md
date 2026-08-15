@@ -106,6 +106,27 @@ Each subdirectory has its own `README.md` describing what's there and how it's u
 
 The repo never holds secrets. Real credentials stay on the host filesystem with restrictive permissions.
 
+### This repo is public — keep deployment identifiers out of it
+
+Credentials are handled (gitignored, mode 600). The easier mistake is pasting a
+real **identifier** into prose: a Slack user/channel ID, a Telegram chat ID, a
+workspace name. They are not credentials — useless without a token — but they
+identify a specific person and workspace, and a push is not reversible.
+
+- **`gandalf/soul/*.md` and skills:** never inline a real value. Reference it as
+  `${operator.name}`, `${telegram.group_chat}`, etc.; `ops/apply-soul.sh`
+  substitutes from `~/.hermes/config.yaml` at push time, so the agent sees real
+  values while the repo stores only the key. Add the key to config.yaml (and to
+  `bringup/config.example.yaml` as a placeholder) rather than hardcoding.
+- **`runlog/` and HANDOFF notes:** this is where identifiers actually leak,
+  because runlogs quote real commands and env lines. Write
+  `SLACK_HOME_CHANNEL=<home-channel-id>` instead of the literal value. The
+  narrative reads the same; the ID is what has to stay behind.
+
+Some IDs from the June 2026 runlogs are already published. They are identifiers
+rather than credentials, and rewriting history would not un-publish them — so
+the rule is forward-looking, not a cleanup task.
+
 ---
 
 ## Versions known to work
