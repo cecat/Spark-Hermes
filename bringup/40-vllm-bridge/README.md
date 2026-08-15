@@ -25,6 +25,15 @@ curl -sf http://127.0.0.1:8000/v1/models | head -c 100
 
 ## What if vLLM moves
 
+A normal shutdown will not move it. `~/shutdown.sh` (via `spark-ai/shutdown.sh`)
+stops vLLM with `docker compose stop`, not `down`, specifically to avoid this
+procedure: `stop` leaves the container and the `nim_net` network in place, so the
+IP survives the reboot. `down` deletes both, and vLLM only reclaims `172.18.0.2`
+by luck of container start order.
+
+So if you find yourself here, something did a `down` — most likely the deliberate
+memory-reclaim step in `spark-ai/README.md` § "Note on vLLM and memory".
+
 If you rebuild the vLLM container and its IP changes:
 1. `docker inspect vllm-qwen3-coder-next --format '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}'`
 2. Edit both `.service` files' `ExecStart` line to point at the new IP.

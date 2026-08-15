@@ -114,10 +114,16 @@ CONTAINER=$(docker ps --format '{{.Names}}' 2>/dev/null | grep '^openshell-ganda
 
 # stop_unit <unit> <description>
 # Reports and continues on failure — one stuck unit must not strand the rest.
+#
+# `is-active` alone is not enough: a crash-looping unit sits in
+# ActiveState=activating / SubState=auto-restart, for which is-active exits 3
+# and prints "activating". Treating that as "already stopped" leaves it to be
+# restarted by systemd seconds later, mid-shutdown.
 stop_unit() {
-    local unit=$1 desc=$2
-    if ! systemctl --user is-active "$unit" >/dev/null 2>&1; then
-        info "$unit already stopped"
+    local unit=$1 desc=$2 state
+    state=$(systemctl --user is-active "$unit" 2>/dev/null || true)
+    if [ "$state" != "active" ] && [ "$state" != "activating" ] && [ "$state" != "reloading" ]; then
+        info "$unit already stopped (${state:-unknown})"
         return 0
     fi
     if $CHECK_ONLY; then

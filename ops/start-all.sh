@@ -44,8 +44,7 @@ export DBUS_SESSION_BUS_ADDRESS="${DBUS_SESSION_BUS_ADDRESS:-unix:path=$XDG_RUNT
 # without touching the real shim on 44497.
 ARGO_PORT="${ARGO_PORT:-44497}"
 
-# Tracking flags so a lower-layer restart can cascade upward
-VLLM_BRIDGES_RESTARTED=false
+# Tracking flag so a lower-layer restart can cascade upward
 LITELLM_RESTARTED=false
 
 wait_for() {
@@ -74,11 +73,6 @@ argo_shim_healthy() {
         -d '{"model":"claudehaiku45","max_tokens":5,"messages":[{"role":"user","content":"hi"}]}' \
         2>/dev/null || echo "000")
     [ "$code" = "200" ]
-}
-
-# Real model-list call against vLLM through the host-side socat at 127.0.0.1:8000.
-vllm_healthy() {
-    curl -sf --max-time 5 "http://127.0.0.1:8000/v1/models" >/dev/null 2>&1
 }
 
 # LiteLLM proxy round-trips a tiny Claude request through to Argo.
@@ -211,6 +205,12 @@ ensure_vllm_reachable() {
 
 ensure_bridge_unit() {
     # ensure_bridge_unit <unit-name> <description>
+    #
+    # Return code is a SIGNAL, not success/failure: 0 = was already active,
+    # 1 = we had to start it (so callers can cascade). A genuine failure calls
+    # fail() and exits. Because this script runs under `set -e`, every call site
+    # MUST consume that 1 — either `if ! ensure_bridge_unit ...` or `|| true`.
+    # A bare call aborts the script the first time a bridge isn't already up.
     local unit=$1 desc=$2
     if systemctl --user is-active "$unit" >/dev/null 2>&1; then
         info "$unit active ($desc)"
@@ -230,17 +230,20 @@ ensure_bridges() {
     echo ""; echo "=== host-side socat bridges (vLLM + Argo) ==="
 
     # vLLM bridges — needed for Gandalf sandbox to reach vLLM via host.openshell.internal:8000
-    if ! ensure_bridge_unit gandalf-vllm-bridge.service "127.0.0.1:8000 → vLLM"; then
-        VLLM_BRIDGES_RESTARTED=true
-    fi
-    if ! ensure_bridge_unit gandalf-vllm-bridge-openshell.service "172.19.0.1:8000 → vLLM"; then
-        VLLM_BRIDGES_RESTARTED=true
-    fi
+    # Nothing cascades off these, so the return-1 ("started it") signal is just consumed.
+    ensure_bridge_unit gandalf-vllm-bridge.service "127.0.0.1:8000 → vLLM" || true
+    ensure_bridge_unit gandalf-vllm-bridge-openshell.service "172.19.0.1:8000 → vLLM" || true
 
     # Argo bridge — needed because LiteLLM is on host but argo-shim is also on host;
     # this one isn't strictly required for LiteLLM (talks to 127.0.0.1:44497 directly)
     # but it's harmless and useful if anything inside the sandbox ever wants direct shim access.
-    ensure_bridge_unit gandalf-argo-bridge.service "172.19.0.1:44497 → argo-shim"
+    #
+    # `|| true` is REQUIRED, not defensive: ensure_bridge_unit returns 1 to mean "I
+    # started it" (0 = was already active). Under `set -e` a bare call therefore
+    # aborts this script whenever the bridge wasn't already up — which is exactly the
+    # post-reboot case — silently skipping LiteLLM, the sandbox and the Hermes gateway.
+    # The two calls above are guarded by `if !` for the same reason.
+    ensure_bridge_unit gandalf-argo-bridge.service "172.19.0.1:44497 → argo-shim" || true
 }
 
 # ── Layer 3: LiteLLM proxy ──────────────────────────────────────────────────
@@ -324,9 +327,14 @@ ensure_sandbox() {
     local stopped
     # `|| true`: no match is the normal "nothing to recover" case, but grep's
     # exit 1 would trip set -e and abort before the diagnostic below.
-    stopped=$(docker ps -a --filter 'status=exited' --format '{{.Names}}' 2>/dev/null | grep '^openshell-gandalf-' | head -1 || true)
+    #
+    # Match any non-running state, not just `exited`: a container Docker is still
+    # restarting after a reboot reports `created` or `restarting`, and an
+    # exited-only filter reports it missing (see DGX-Spark/ops/boot-recover-sandbox.sh).
+    stopped=$(docker ps -a --filter 'status=exited' --filter 'status=created' --filter 'status=restarting' \
+        --format '{{.Names}}' 2>/dev/null | grep '^openshell-gandalf-' | head -1 || true)
     if [ -n "$stopped" ]; then
-        warn "sandbox container exited — starting it (NOT rebuilding: state lives in its writable layer)"
+        warn "sandbox container not running — starting it (NOT rebuilding: state lives in its writable layer)"
         docker start "$stopped" >/dev/null || fail "docker start $stopped failed"
         if wait_for "sandbox coming up" 60 sandbox_ready; then
             echo ""; info "sandbox phase: Ready"; return
