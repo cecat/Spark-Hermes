@@ -7,6 +7,9 @@
 | Bring the whole **host** up after a reboot (all 5 layers, spans repos) | `~/start-all.sh` — lives in the `DGX-Spark` repo |
 | Bring up / repair the **Gandalf layer only** (sandbox, LiteLLM, Hermes gateway) | `bash start-all.sh` |
 | See if Gandalf is healthy | `bash status.sh` |
+| Shut the whole **host** down gracefully before a reboot (spans repos) | `~/shutdown.sh` — lives in the `DGX-Spark` repo |
+| Shut the **Gandalf tenant only** down gracefully | `bash shutdown.sh` |
+| See what a shutdown *would* stop, without stopping it | `bash shutdown.sh --check` (or `~/shutdown.sh --check`) |
 | Push my updated `gandalf/soul/*.md` to the running agent (renders to `SOUL.md`) | `bash apply-soul.sh` |
 | Preview what `SOUL.md` will contain without uploading | `bash apply-soul.sh --dry-run` |
 | Push my updated `gandalf/skills/*/SKILL.md` to the agent | `bash apply-skills.sh` |
