@@ -12,10 +12,18 @@
 #   bash ops/apply-memory-provider.sh            # copy plugin + telemetry dir only
 #   bash ops/apply-memory-provider.sh --activate # also set memory.provider: falda
 #   bash ops/apply-memory-provider.sh --deactivate
+#   bash ops/apply-memory-provider.sh --native-memory on|off
 #
-# After --activate/--deactivate you MUST restart the Hermes gateway for the
-# change to load. This script does NOT restart it (operator's call; the gateway
-# is not a shared service but restarts drop in-flight sessions).
+# --native-memory controls Hermes' BUILT-IN memory (MEMORY.md + USER.md), which
+# is independent of and additive to the FALDA provider: run_agent.py appends the
+# provider's block after the built-in blocks, so both can be on at once. Hermes
+# defaults both flags to True; ops/phase0-runner.py forces them off at the start
+# of every cell and never restores them, so a finished grid run leaves the agent
+# with no native memory.
+#
+# After --activate/--deactivate/--native-memory you MUST restart the Hermes
+# gateway for the change to load. This script does NOT restart it (operator's
+# call; the gateway is not a shared service but restarts drop in-flight sessions).
 set -eu
 . "$(dirname "$0")/_lib.sh"
 ensure_path
@@ -31,11 +39,20 @@ CONFIG="/sandbox/.hermes/config.yaml"
 [ -f "$SRC/__init__.py" ] || fail "$SRC missing __init__.py"
 
 ACTION="copy"
+NATIVE_WANT=""
 case "${1:-}" in
   --activate)   ACTION="activate" ;;
   --deactivate) ACTION="deactivate" ;;
+  --native-memory)
+    ACTION="native"
+    case "${2:-}" in
+      on)  NATIVE_WANT="True" ;;
+      off) NATIVE_WANT="False" ;;
+      *)   fail "--native-memory needs 'on' or 'off'" ;;
+    esac
+    ;;
   "")           ACTION="copy" ;;
-  *)            fail "Unknown arg: $1 (use --activate / --deactivate / none)" ;;
+  *)            fail "Unknown arg: $1 (use --activate / --deactivate / --native-memory on|off / none)" ;;
 esac
 
 # ── 1. Copy the plugin dir into the overlay ────────────────────────────────
@@ -73,7 +90,32 @@ print(f"memory.provider set to {want!r}")
 PYEOF
 }
 
+set_native_memory() {
+  local want="$1"  # "True" or "False"
+  docker exec -u sandbox "$CONTAINER" cp "$CONFIG" "${CONFIG}.bak-pre-nativemem-$(date -u +%Y%m%dT%H%M%SZ)"
+  docker exec -i -u sandbox -e WANT="$want" "$CONTAINER" /opt/hermes/.venv/bin/python - "$CONFIG" <<'PYEOF'
+import os, sys, yaml
+path = sys.argv[1]
+want = os.environ["WANT"] == "True"
+with open(path, encoding="utf-8-sig") as f:
+    data = yaml.safe_load(f) or {}
+mem = data.setdefault("memory", {})
+mem["memory_enabled"] = want
+mem["user_profile_enabled"] = want
+with open(path, "w", encoding="utf-8") as f:
+    yaml.dump(data, f, default_flow_style=False, sort_keys=False)
+print(f"memory_enabled={want} user_profile_enabled={want} "
+      f"(provider={mem.get('provider','')!r} — unchanged)")
+PYEOF
+}
+
 case "$ACTION" in
+  native)
+    note "Setting native Hermes memory (MEMORY.md + USER.md) -> $NATIVE_WANT"
+    set_native_memory "$NATIVE_WANT"
+    info "Done. The FALDA provider setting was not touched."
+    warn "RESTART REQUIRED: restart the Hermes gateway for this to take effect."
+    ;;
   activate)
     note "Activating: memory.provider = falda"
     set_provider "falda"
