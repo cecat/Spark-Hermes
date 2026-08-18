@@ -9,18 +9,23 @@
 #   system_prompt_block_enabled          — inject the T3 core doc statically
 #   share_tool_enabled                   — the deliberate cross-agent falda_share tool
 #
-# Committed default = Step A baseline: provider PRESENT, everything OFF.
-# This isolates "provider loaded" from "recall active".
+# The phase0 ablation grid is over (Charlie, 2026-08-18). Steady state: native
+# framework memory AND FALDA run together for every agent, and cross-agent
+# sharing is ON. Do not reintroduce an "everything OFF" baseline here without
+# saying which experiment needs it.
 
-condition_label: "phase0-inject_absent"
+condition_label: "steady-state-shared-on"
 
 # --- recall (each independent) ---
 prefetch_enabled: true
 system_prompt_block_enabled: false
 
 # --- tools (each independent — do NOT couple to prefetch) ---
-share_tool_enabled: false
-search_tool_enabled: false
+# share_tool_enabled registers falda_share, the ONLY writer to shared-corpus.
+# It sat false as leftover ablation state and the pool took no writes for 20
+# days; re-enabled 2026-08-18.
+share_tool_enabled: true
+search_tool_enabled: true
 
 # --- prefetch shape (used only when prefetch_enabled) ---
 prefetch_tiers: [stream, atoms]   # subset of {stream, atoms}
@@ -29,10 +34,10 @@ topk_stream: 5
 topk_atoms: 5
 max_chars_per_turn: 2000
 
-# --- RRF weights: CURRENTLY INERT ---
-# FALDA hardcodes RRF (1/(RRF_K+i), equal dense/lexical) in src/falda.ts.
-# These are logged into telemetry (intended-vs-actual) but have NO effect until
-# an upstream FALDA patch makes RRF configurable. See docs/FALDA-FINDINGS.md.
+# --- RRF weights ---
+# Live since falda aa9d025 ("make RRF fusion weights configurable per request"):
+# the gateway takes dense_weight/lexical_weight per request. The older comment
+# here called them inert, which stopped being true at that commit.
 rrf_dense_weight: 1.0
 rrf_lexical_weight: 1.0
 
