@@ -330,7 +330,7 @@ ensure_sandbox() {
     #
     # Match any non-running state, not just `exited`: a container Docker is still
     # restarting after a reboot reports `created` or `restarting`, and an
-    # exited-only filter would report it missing.
+    # exited-only filter reports it missing (see DGX-Spark/ops/boot-recover-sandbox.sh).
     stopped=$(docker ps -a --filter 'status=exited' --filter 'status=created' --filter 'status=restarting' \
         --format '{{.Names}}' 2>/dev/null | grep '^openshell-gandalf-' | head -1 || true)
     if [ -n "$stopped" ]; then
@@ -400,61 +400,6 @@ ensure_hermes_gateway() {
     fi
 }
 
-# ── Layer 6: native Hermes memory (MEMORY.md + USER.md) ─────────────────────
-#
-# STEADY STATE IS ON. Charlie's standing decision (2026-08-18): native memory
-# stays enabled alongside the FALDA provider until he says otherwise. The two
-# are independent and additive — run_agent.py appends the provider block after
-# the built-in ones — so "both" is a supported configuration, not a conflict.
-#
-# This is asserted on every start because the flags live in the sandbox's
-# writable layer, where an experiment or a hand-edit can silently clear them.
-# ops/phase0-runner.py did exactly that: it set them off per cell and never
-# restored them, and Gandalf ran for two weeks with no MEMORY.md/USER.md.
-# Nothing announces that state — the agent just quietly stops knowing things.
-#
-# Absent keys are NOT the same as "on": run_agent.py reads them with a default
-# of False (config.py's True is only the generation-time default), so the keys
-# must be present and true, which is what this checks.
-ensure_native_memory() {
-    echo ""; echo "=== Hermes native memory (MEMORY.md + USER.md) ==="
-
-    local container
-    container=$(docker ps --format '{{.Names}}' 2>/dev/null | grep '^openshell-gandalf-' | head -1)
-    [ -n "$container" ] || { warn "no gandalf container — skipping native memory check"; return; }
-
-    local state
-    state=$(docker exec -i -u sandbox "$container" /opt/hermes/.venv/bin/python -c "
-import yaml
-d = yaml.safe_load(open('/sandbox/.hermes/config.yaml', encoding='utf-8-sig')) or {}
-m = d.get('memory') or {}
-print('on' if (m.get('memory_enabled') and m.get('user_profile_enabled')) else 'off')
-" 2>/dev/null | tr -d '[:space:]') || state=""
-
-    case "$state" in
-        on)
-            info "native memory ON (provider: $(docker exec -i -u sandbox "$container" \
-                /opt/hermes/.venv/bin/python -c "
-import yaml
-print((yaml.safe_load(open('/sandbox/.hermes/config.yaml', encoding='utf-8-sig')) or {}).get('memory',{}).get('provider','') or 'none')" 2>/dev/null | tr -d '[:space:]'))"
-            ;;
-        off)
-            warn "native memory is OFF — re-enabling (steady state is ON)"
-            bash "$HOME/code/Spark-Hermes/ops/apply-memory-provider.sh" --native-memory on >/dev/null \
-                || fail "could not re-enable native memory"
-            warn "restarting gateway so the change loads"
-            docker restart "$container" >/dev/null || fail "docker restart $container failed"
-            wait_for "gateway restarting" 120 hermes_gateway_healthy \
-                || fail "gateway did not come back after enabling native memory"
-            echo ""; info "native memory re-enabled and gateway healthy"
-            ;;
-        *)
-            warn "could not read memory config — check by hand:"
-            warn "  docker exec -u sandbox -e HOME=/sandbox $container hermes memory status"
-            ;;
-    esac
-}
-
 # ── Main ────────────────────────────────────────────────────────────────────
 
 ensure_argo_shim
@@ -463,7 +408,6 @@ ensure_bridges
 ensure_litellm
 ensure_sandbox
 ensure_hermes_gateway
-ensure_native_memory
 
 echo ""; echo "=== All Spark-Hermes services healthy ==="
 info "argo-shim:        running (127.0.0.1:44497, Argo SSH tunnel up)"
@@ -473,7 +417,6 @@ info "argo bridge:      172.19.0.1:44497 → argo-shim"
 info "LiteLLM:          127.0.0.1:4000 + 172.19.0.1:4000 (Claude+vLLM routing)"
 info "Gandalf sandbox:  Ready"
 info "Hermes gateway:   http://127.0.0.1:8642/v1 (model: claudeopus47 via LiteLLM)"
-info "Native memory:    ON (MEMORY.md + USER.md, alongside the FALDA provider)"
 echo ""
 note "Inspect any layer:"
 note "  argo-shim log:    tail -F ~/code/spark-ai/argo-shim.log"
