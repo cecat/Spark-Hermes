@@ -60,6 +60,10 @@ hdr_step "1. Diagnosing the snapshot failure (read-only)"
     printf '%-42s ' "$p"
     docker exec "$CONTAINER" sh -c "[ -e $p ] && (readlink -f $p) || echo ABSENT" 2>&1
   done
+  echo
+  echo "### can the OpenClaw agents reach FALDA through the new nim_net bridge?"
+  echo "### (expect 200; this is the half of shared memory that luoji/cecat need)"
+  docker exec openclaw-gateway sh -c 'curl -sS -o /dev/null -w "  172.18.0.1:8077 -> %{http_code}\n" --max-time 10 -X POST http://172.18.0.1:8077/atoms/query -H "Content-Type: application/json" -d "{\"tenant\":\"luoji\",\"limit\":1}"' 2>&1
 } 2>&1 | tee "$OUT/1-snapshot-diagnosis.log"
 
 # ── 2. Back up what we can actually reach ──────────────────────────────────
