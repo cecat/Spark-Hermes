@@ -136,44 +136,96 @@ info "agent-identity.json written (agent=$AGENT_EMAIL_VAL)"
 # runs with HERMES_HOME=/sandbox/.hermes), but NemoClaw bakes that file from a
 # limited allowlist of keys. Anything outside that allowlist that we need —
 # third-party API keys, plus the platform HOME_CHANNEL env vars that
-# `/hermes sethome` writes to ~/.hermes/.env — must be copied in manually
-# and the NemoClaw integrity hash updated.
+# `/hermes sethome` writes to ~/.hermes/.env — has to get in somehow.
+#
+# HOW THIS WORKS DEPENDS ON THE NEMOCLAW VERSION — see the guard check below.
+#
+# On v0.0.55 (no guard): we edit .env directly and hand-write the two-line
+# integrity hash file. This is what the running deployment does today.
+#
+# From ~v0.0.110 (guard present): /etc/nemoclaw/hermes.config-hash is owned by
+# hermes-runtime-config-guard.py, which seals config.yaml, .env and the hash
+# together and tracks a restart seal. Hand-writing the hash produces a file
+# that does not carry the seal state, so it is no longer a valid update.
+# The guard's own `refresh-hashes` action cannot substitute: it is a *startup*
+# action, restricted to the Hermes PID 1 transaction, and refuses to run from
+# an ordinary docker exec ("restricted to the Hermes PID 1 startup transaction").
+#
+# On a guarded runtime these keys have sanctioned homes instead, and this
+# manual sync should be retired rather than ported:
+#   TAVILY_API_KEY  -> `nemohermes credentials add tavily-search --type tavily
+#                       --credential TAVILY_API_KEY`. Tavily is a first-class
+#                       Hermes web-search provider there and carries its own
+#                       egress preset. The value stays in the gateway store
+#                       rather than as plaintext in the sandbox.
+#   *_HOME_CHANNEL  -> preserved automatically across rebuild by
+#                       src/lib/state/preserved-env (patterns *_HOME_CHANNEL,
+#                       *_HOME_CHANNEL_NAME, *_HOME_CHANNEL_THREAD_ID). The
+#                       belt-and-suspenders copy is no longer needed.
 #
 # Add new entries to EXTRA_ENV_KEYS as the deployment grows.
+HERMES_CONFIG_GUARD=/usr/local/lib/nemoclaw/hermes-runtime-config-guard.py
+
 EXTRA_ENV_KEYS=(
   TAVILY_API_KEY                   # web search/extract/crawl via api.tavily.com
   SLACK_HOME_CHANNEL               # belt-and-suspenders: persist /hermes sethome across rebuilds
   TELEGRAM_HOME_CHANNEL            # same, for the Telegram adapter (also written by /sethome)
 )
-SYNCED_ANY=0
-for KEY in "${EXTRA_ENV_KEYS[@]}"; do
-  if grep -q "^${KEY}=" ~/.hermes/.env 2>/dev/null; then
-    VAL=$(grep "^${KEY}=" ~/.hermes/.env | head -1 | cut -d= -f2-)
-    # Add or replace in sandbox .env
-    docker exec -u root "$CONTAINER" sh -c "
-      if grep -q '^${KEY}=' /sandbox/.hermes/.env; then
-        sed -i 's|^${KEY}=.*|${KEY}=${VAL}|' /sandbox/.hermes/.env
-      else
-        echo '${KEY}=${VAL}' >> /sandbox/.hermes/.env
-      fi
-    "
-    info "synced ${KEY} into sandbox .env"
-    SYNCED_ANY=1
-  fi
-done
-if [ "$SYNCED_ANY" -eq 1 ]; then
-  echo ""
-  echo "=== recomputing NemoClaw integrity hash after .env edits ==="
-  docker exec -u root "$CONTAINER" sh -c '
-    cd /sandbox/.hermes
-    cfg_hash=$(sha256sum config.yaml | awk "{print \$1}")
-    env_hash=$(sha256sum .env | awk "{print \$1}")
-    cat > /etc/nemoclaw/hermes.config-hash <<EOF2
+
+echo ""
+echo "=== syncing extra env vars into sandbox .env ==="
+if docker exec "$CONTAINER" test -f "$HERMES_CONFIG_GUARD" 2>/dev/null; then
+  # Guarded runtime. Do NOT edit .env or the hash file by hand.
+  warn "NemoClaw config guard present — skipping manual .env sync"
+  echo "    /etc/nemoclaw/hermes.config-hash is guard-owned; hand-writing it would"
+  echo "    desynchronise the restart seal and can stop the gateway starting."
+  echo "    Migrate these keys to their sanctioned homes:"
+  for KEY in "${EXTRA_ENV_KEYS[@]}"; do
+    if docker exec "$CONTAINER" grep -q "^${KEY}=" /sandbox/.hermes/.env 2>/dev/null; then
+      info "  ${KEY}: already present in sandbox .env"
+    else
+      case "$KEY" in
+        TAVILY_API_KEY)
+          warn "  ${KEY}: MISSING — run: nemohermes credentials add tavily-search --type tavily --credential TAVILY_API_KEY" ;;
+        *_HOME_CHANNEL)
+          warn "  ${KEY}: MISSING — expected to be preserved automatically; re-run '/hermes sethome' if web search or routing misbehaves" ;;
+        *)
+          warn "  ${KEY}: MISSING — no sanctioned home identified; investigate before relying on it" ;;
+      esac
+    fi
+  done
+else
+  # Unguarded runtime (v0.0.55). Original behaviour.
+  SYNCED_ANY=0
+  for KEY in "${EXTRA_ENV_KEYS[@]}"; do
+    if grep -q "^${KEY}=" ~/.hermes/.env 2>/dev/null; then
+      VAL=$(grep "^${KEY}=" ~/.hermes/.env | head -1 | cut -d= -f2-)
+      # Add or replace in sandbox .env
+      docker exec -u root "$CONTAINER" sh -c "
+        if grep -q '^${KEY}=' /sandbox/.hermes/.env; then
+          sed -i 's|^${KEY}=.*|${KEY}=${VAL}|' /sandbox/.hermes/.env
+        else
+          echo '${KEY}=${VAL}' >> /sandbox/.hermes/.env
+        fi
+      "
+      info "synced ${KEY} into sandbox .env"
+      SYNCED_ANY=1
+    fi
+  done
+  if [ "$SYNCED_ANY" -eq 1 ]; then
+    echo ""
+    echo "=== recomputing NemoClaw integrity hash after .env edits ==="
+    docker exec -u root "$CONTAINER" sh -c '
+      cd /sandbox/.hermes
+      cfg_hash=$(sha256sum config.yaml | awk "{print \$1}")
+      env_hash=$(sha256sum .env | awk "{print \$1}")
+      cat > /etc/nemoclaw/hermes.config-hash <<EOF2
 $cfg_hash  /sandbox/.hermes/config.yaml
 $env_hash  /sandbox/.hermes/.env
 EOF2
-  '
-  info "integrity hash updated"
+    '
+    info "integrity hash updated"
+  fi
 fi
 
 # ── 3. Sandbox-side scripts (Hermes no-agent cron jobs) ────────────────

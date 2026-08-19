@@ -10,8 +10,17 @@ ensure_path
 load_hermes_env
 require_hermes_config
 
-note "Taking pre-rebuild snapshot..."
-bash "$(dirname "$0")/snapshot.sh" pre-rebuild 2>&1 | tail -3
+# A rebuild wipes the sandbox's writable layer, so this backup is the only way
+# back. It must be REAL: ops/snapshot.sh was used here until 2026-08-19, and it
+# reports success over an empty result — it aborts on the 1.2 GB state.db and
+# takes the whole run down with it, so snapshots v18 and v20 contain nothing but
+# a manifest and SOUL.md. Piping it through `tail` also masked its exit status.
+# ops/backup-sandbox.sh is manifest-driven and exits non-zero when anything
+# fails; do not swap it back or wrap it in a pipe.
+note "Taking pre-rebuild backup (this is the rollback point)..."
+if ! bash "$(dirname "$0")/backup-sandbox.sh"; then
+    fail "Pre-rebuild backup FAILED — refusing to rebuild without a rollback point."
+fi
 
 note "Running nemohermes gandalf rebuild..."
 # Forward env vars rebuild expects (credentials for providers, Slack tokens
