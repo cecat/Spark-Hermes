@@ -1,0 +1,133 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# DRAFT — Step 1 (P3-1) of docs/HANDOFF-2026-08-20-openclaw-migration.md.
+# Not yet applied. cecat is not yet onboarded onto OpenShell.
+#
+# Egress for the **cecat** sandbox once she moves off hand-rolled Compose and
+# onto NemoClaw/OpenShell. Derived by reading all 11 runbooks and all 8 scripts
+# (not sampled) plus HEARTBEAT.md, CALENDAR.md, PATHS.md, TOOLS.md, and
+# cross-checking the live container's outbound sockets on 2026-08-20.
+#
+# ── Scope: what actually egresses FROM THE SANDBOX ───────────────────────────
+#
+# The list is short because most of cecat's apparent network surface is not
+# hers. Verified empirically: her live sandbox
+# (openclaw-sbx-agent-cecat-f7952fcc) had ZERO established outbound sockets,
+# while openclaw-gateway held connections to Northwestern (argo) and AWS
+# (Slack). The sandbox only reaches the network during an `exec:` call.
+#
+#   IN  the sandbox — `exec: python3 /scripts/gmail-api.py ...` (24 call sites
+#       across the runbooks) and `/scripts/contacts-api.py ...` (7 sites).
+#       Those two scripts are the ONLY sandbox-side network clients.
+#
+#   NOT in the sandbox, do not allowlist here:
+#     - Slack. cecat never speaks to Slack. Every runbook writes a JSON file to
+#       /shared/slack/outbox/ and a HOST cron (send-slack.sh, */5) delivers it.
+#       Egress belongs to the host, not this preset.
+#     - The model endpoint (argo 172.18.0.1:44497). The gateway calls it.
+#     - web_search / web_fetch / browser (Brave, arbitrary URLs). Gateway-side
+#       OpenClaw tools; the sandbox never resolves those hosts itself.
+#     - app.ticketmaster.com. check-concerts.py runs from HOST crontab
+#       (`15 9 * * 1,4`), never via `exec:`. It also reads
+#       spark-ai-agents/cecat/.env for TICKETMASTER_API_KEY, a host path.
+#       Add it here ONLY if concert-watch is later moved inside the sandbox.
+#     - forms.gle / docs.google.com / uhaul.com / mychart.duly.com / tpc.dev —
+#       all prose mentions in memory/*.md and guide docs, not code paths.
+#
+# ── ⚠️ BLOCKER, not a policy problem: all four scripts use urllib ────────────
+#
+#   check-concerts.py, contacts-api.py, gmail-api.py, reauth.py
+#
+# The L7 proxy in this OpenShell build (0.0.44) DENIES urllib's CONNECT-tunnel
+# path even for allowlisted hosts (see CLAUDE.md → Network egress gotchas).
+# Applying this preset will NOT make them work. gmail-api.py and
+# contacts-api.py must be ported to httpx or curl BEFORE onboard, or every
+# runbook fails with the exact silent-403 failure mode Step 1 warns about.
+# Both are stdlib-only by design ("no pip dependencies") — that design goal
+# is what breaks under OpenShell.
+#
+# ── Also blocking, tracked separately ────────────────────────────────────────
+#
+#   - `gog` is NOT installed in the sandbox today (verified: command not found;
+#     python3 and curl are present). RUNBOOK_SLACK_POST.md step "gog contacts
+#     search NAME" and the two harvest .sh scripts therefore only ever ran
+#     host-side. Either install gog in the sandbox (then accounts.google.com /
+#     www.googleapis.com below become load-bearing) or keep those host-side.
+#   - reauth.py uses redirect_uri http://localhost — an interactive host-side
+#     browser dance, mirroring ops/reauth-google.sh. accounts.google.com is
+#     listed below only to cover a future in-sandbox re-auth; drop it if the
+#     dance stays on the host.
+#
+# Apply with: nemohermes sandbox policy add cecat --from-file <this-file> --yes
+
+preset:
+  name: cecat-egress
+  description: "cecat sandbox: Gmail + People API and OAuth refresh. Slack, the model endpoint, web tools and concert-watch are NOT sandbox egress."
+
+network_policies:
+  cecat_google:
+    name: cecat_google
+    endpoints:
+      # OAuth refresh — every gmail-api.py / contacts-api.py invocation hits
+      # this first when the access token is within 60s of expiry.
+      - host: oauth2.googleapis.com
+        port: 443
+        protocol: rest
+        enforcement: enforce
+        rules:
+          - allow: { method: POST, path: "/**" }
+
+      # gmail-api.py: search / get / send / modify against
+      # /gmail/v1/users/me. modify uses POST, not PATCH.
+      - host: gmail.googleapis.com
+        port: 443
+        protocol: rest
+        enforcement: enforce
+        rules:
+          - allow: { method: GET, path: "/**" }
+          - allow: { method: POST, path: "/**" }
+
+      # contacts-api.py: search is GET, create is POST (People API v1).
+      # Gandalf's google-workspace-egress allows GET only — cecat needs POST
+      # because RUNBOOK_ONETIME_SYNC and RUNBOOK_STYLE_REVIEW create contacts.
+      - host: people.googleapis.com
+        port: 443
+        protocol: rest
+        enforcement: enforce
+        rules:
+          - allow: { method: GET, path: "/**" }
+          - allow: { method: POST, path: "/**" }
+
+      # Only needed if `gog` is installed in the sandbox, or if the OAuth
+      # re-auth dance moves off the host. Harmless if unused; delete if the
+      # decision is to keep both host-side.
+      - host: accounts.google.com
+        port: 443
+        protocol: rest
+        enforcement: enforce
+        rules:
+          - allow: { method: GET, path: "/**" }
+          - allow: { method: POST, path: "/**" }
+      - host: www.googleapis.com
+        port: 443
+        protocol: rest
+        enforcement: enforce
+        rules:
+          - allow: { method: GET, path: "/**" }
+          - allow: { method: POST, path: "/**" }
+
+    binaries:
+      # VERIFIED 2026-08-20 against openshell/sandbox-from:1782570229 — the same
+      # imageTag cecat will get (per ~/.nemoclaw/sandboxes.json). python3,
+      # python3.13 and curl are present; python3.11 is NOT — do not add it.
+      #
+      # /usr/bin/curl is REQUIRED as long as gmail-api.py / contacts-api.py
+      # shell out to curl: the L7 proxy resolves the peer binary of whichever
+      # process opens the socket, so a python script invoking curl is seen as
+      # CURL, not python. Gandalf's google-workspace-egress lists python paths
+      # only — copying it verbatim would fail closed on every Gmail call.
+      # tavily-egress is the correct model. If those scripts are later moved to
+      # httpx (in-process), curl can be dropped.
+      - { path: /usr/bin/python3 }
+      - { path: /usr/bin/python3.13 }
+      - { path: /usr/bin/curl }
