@@ -35,3 +35,17 @@ nextdns-screen*.png
 
 # Host-specific Claude Code context (differs Mac vs Spark; intentionally untracked)
 CLAUDE.md
+
+# Session handoffs and planning docs — working notes, not published.
+# This repo is public; these are verbose, quickly stale, and name internals.
+# Durable conclusions belong in README.md / CLAUDE.md / docs/FOLLOWUPS.md or a
+# dated runlog/ entry instead. DECISION-*.md records a settled choice and is
+# also treated as a working note.
+HANDOFF-*.md
+docs/HANDOFF-*.md
+docs/archive/HANDOFF-*.md
+PLAN-*.md
+docs/PLAN-*.md
+docs/archive/PLAN-*.md
+DECISION-*.md
+docs/DECISION-*.md

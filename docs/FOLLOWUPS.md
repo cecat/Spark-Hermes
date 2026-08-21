@@ -10,7 +10,8 @@ Deferred items that aren't blocking current work. Check this off as they're done
 > per-port state segregation (PR #6711) and inference route guard (PR #6338) that
 > make multi-agent safe. **Plan: upgrade to v0.0.108, rebuild Gandalf, then
 > migrate cecat.** Operator approved the rebuild 2026-08-21.
-> Full plan: [`HANDOFF-2026-08-21b-upgrade-to-v0.0.108.md`](HANDOFF-2026-08-21b-upgrade-to-v0.0.108.md).
+> Full plan: `docs/HANDOFF-2026-08-21b-upgrade-to-v0.0.108.md` (gitignored working
+> note — on the host, not published).
 >
 > Still true: `v0.0.109`+ cannot onboard or rebuild on this host, so the DMI bug
 > is still worth filing — v0.0.108 buys a working window, not a permanent fix.
@@ -49,7 +50,7 @@ because `v0.0.55` has no N1x preflight. That much is still true: `onboard` will
 
 So this bug is the unblocker for the whole cecat/luoji migration, which makes
 filing it critical-path rather than optional. Full analysis:
-[`HANDOFF-2026-08-21-cecat-migration-blocked.md`](HANDOFF-2026-08-21-cecat-migration-blocked.md).
+`docs/HANDOFF-2026-08-21-cecat-migration-blocked.md` (gitignored working note).
 
 The P3-1/P3-2 blockers named here are **done**: egress is enumerated
 (`bringup/50-openshell-policies/cecat-egress.yaml`) and the `/shared` question

@@ -84,7 +84,7 @@ bash ops/snapshot.sh pre-experiment
 
 | Directory | What lives here |
 |---|---|
-| `docs/` | Background: plan, platform-options write-up, lessons-learned comparison |
+| `docs/` | Reference and open items. **Start with [`docs/FOLLOWUPS.md`](docs/FOLLOWUPS.md).** Note: session handoffs (`HANDOFF-*.md`), plans (`PLAN-*.md`) and `DECISION-*.md` are gitignored working notes — they exist on the host but are deliberately not published, since this repo is public. Durable conclusions get folded into this README, `CLAUDE.md`, `docs/FOLLOWUPS.md`, or a dated `runlog/` entry. |
 | `bringup/` | One-time install from a fresh host (numbered 00, 10, 20…) |
 | `gandalf/` | Gandalf's personality (`soul/` → `SOUL.md`) and procedures (`skills/`) — edit these to change his behavior |
 | `ops/` | Apply scripts and runbooks for day-2 operations |
@@ -131,13 +131,22 @@ the rule is forward-looking, not a cleanup task.
 
 ## Versions known to work
 
-- NemoClaw / nemohermes: `v0.1.0`
+- NemoClaw / nemohermes: `v0.0.55` — what the CLIs report. The npm package
+  version is `0.1.0`, which is what earlier notes here recorded; both refer to
+  the same install.
 - OpenShell: `0.0.44`
-- Hermes Agent: `v2026.5.16`
+- Hermes Agent: `v2026.5.16` — reports as `Hermes Agent v0.14.0 (2026.5.16)`,
+  i.e. semver *and* calendar. Newer NemoClaw reads the semver.
 - Sandbox image base: `ghcr.io/nvidia/nemoclaw/hermes-sandbox-base:latest` (digest pinned in NemoClaw blueprint)
 - Host: Ubuntu 24.04, Docker 28+, NVIDIA GB10
 
 These are alpha-stage projects that move quickly. See `bringup/README.md` for the drift-handling rule.
+
+**Do not upgrade these yet.** NemoClaw `v0.0.110` cannot onboard or rebuild a
+sandbox on this host — its preflight misidentifies our Dell-branded GB10 and
+fails closed. Decision, evidence, and the re-test trigger are in
+[`docs/FOLLOWUPS.md`](docs/FOLLOWUPS.md); the upstream bug report is in
+[`docs/UPSTREAM-BUG-nemoclaw-gb10-dmi.md`](docs/UPSTREAM-BUG-nemoclaw-gb10-dmi.md).
 
 ---
 
