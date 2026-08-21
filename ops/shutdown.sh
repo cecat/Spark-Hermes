@@ -145,34 +145,15 @@ stop_unit() {
 # Stopping the sandbox cleanly is the one irreversible-ish thing here. Its
 # restart policy is unless-stopped, and Docker deliberately SKIPS containers
 # that were cleanly stopped — so after this script runs, Docker will NOT bring
-# the sandbox back at boot. gandalf-boot-recover.service is what does, via
-# `docker start`. If that unit is disabled or disarmed, Gandalf stays down
-# after the reboot until someone runs ~/start-all.sh by hand. Say so now,
-# while it's still cheap to fix, rather than discovering it tomorrow.
+# the sandbox back at boot. Nothing else will either: the stack has no
+# boot-time automation, because every agent's model sits behind argo-shim and
+# argo-shim's cold start needs an interactive Duo passcode. Gandalf comes back
+# when you run ~/start-all.sh, which does the `docker start` itself.
 
 phase_preflight() {
     hdr "Phase 0: pre-flight — reboot recovery readiness"
 
-    # 'enabled' only means systemd will RUN the unit, not that it will succeed.
-    # Report both facts as one verdict rather than two lines that contradict
-    # each other ("armed, will restart at boot" directly above "failed").
-    local recover_failed=false
-    [ "$(systemctl --user is-failed gandalf-boot-recover.service 2>/dev/null)" = "failed" ] && recover_failed=true
-
-    if [ -f "$HOME/.no-autostart" ]; then
-        warn "~/.no-autostart exists — gandalf-boot-recover.service will SKIP itself at boot"
-        note "Gandalf will stay down until you run ~/start-all.sh. Re-arm with: rm ~/.no-autostart"
-    elif ! systemctl --user is-enabled gandalf-boot-recover.service >/dev/null 2>&1; then
-        warn "gandalf-boot-recover.service is NOT enabled"
-        note "Nothing will 'docker start' the sandbox at boot; plan to run ~/start-all.sh"
-    elif $recover_failed; then
-        warn "gandalf-boot-recover.service is enabled but FAILED at the last boot"
-        note "It is armed, but it did not work last time — don't assume the sandbox comes back."
-        note "Check first:  systemctl --user status gandalf-boot-recover.service"
-        note "Boot log:     ~/start-all-boot.log     Fallback: ~/start-all.sh"
-    else
-        info "gandalf-boot-recover.service enabled and healthy — sandbox will restart at boot"
-    fi
+    note "Nothing restarts at boot — run ~/start-all.sh after rebooting (needs a Duo passcode)."
 
     if [ -z "$CONTAINER" ]; then
         note "no running gandalf sandbox container — phases 1–4 will mostly no-op"

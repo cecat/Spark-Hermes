@@ -9,12 +9,36 @@ load_hermes_env
 CONTAINER=$(gandalf_container)
 note "Container: $CONTAINER"
 
+# Gandalf lives on the port-8080 control plane, named 'nemoclaw'. cecat's
+# tooling (ops/cecat-env.sh, the v0.0.108 CLI) flips the GLOBAL default gateway
+# to nemoclaw-8090 as a side effect of onboard/exec, which used to make this
+# script report "Sandbox phase: unknown" when Gandalf was perfectly healthy.
+# Pin every query below to his gateway explicitly rather than trusting the
+# ambient default. Also unset any inherited overrides from a sourced cecat env.
+unset OPENSHELL_GATEWAY OPENSHELL_GATEWAY_ENDPOINT NEMOCLAW_GATEWAY_PORT 2>/dev/null || true
+GW=(-g nemoclaw)
+# Call Gandalf's 0.0.44 CLI by absolute path. ensure_path only PREPENDS
+# ~/.local/bin when it is absent, so a sourced ops/cecat-env.sh leaves the
+# 0.0.101 binary ahead of it on PATH and a bare `openshell` would talk to
+# cecat's plane even with -g.
+OSH="$HOME/.local/bin/openshell"
+
 # 1. Sandbox phase (openshell colorizes output; strip ANSI before comparing)
-PHASE=$(openshell sandbox list 2>/dev/null | awk '/^gandalf/ {print $NF}' | sed 's/\x1b\[[0-9;]*m//g')
+PHASE=$("$OSH" "${GW[@]}" sandbox list 2>/dev/null | awk '/^gandalf/ {print $NF}' | sed 's/\x1b\[[0-9;]*m//g')
 [ "$PHASE" = "Ready" ] && info "Sandbox phase: Ready" || fail "Sandbox phase: ${PHASE:-unknown}"
 
-# 2. Inference round-trip
+# 2. Inference round-trip.
+# The api_server gained an auth key (platforms.api_server.extra.key) with the
+# phase0 work; without the bearer token every request is a 401, which this
+# script used to report as a permanent false "Inference: FAIL".
+API_KEY_FILE="$HOME/.config/falda/phase0-api-key.env"
+AUTH_HDR="X-No-Auth: 1"
+if [ -f "$API_KEY_FILE" ]; then
+  K=$(sed -n 's/^API_SERVER_KEY=//p' "$API_KEY_FILE" | head -1)
+  [ -n "$K" ] && AUTH_HDR="Authorization: Bearer $K"
+fi
 REPLY=$(curl -sS -m 30 -X POST http://127.0.0.1:8642/v1/chat/completions \
+  -H "$AUTH_HDR" \
   -H 'Content-Type: application/json' \
   -d '{"model":"hermes-agent","messages":[{"role":"user","content":"reply with exactly: OK"}],"max_tokens":3}' \
   2>/dev/null | python3 -c 'import json,sys; d=json.load(sys.stdin); print(d["choices"][0]["message"]["content"].strip())' 2>/dev/null || echo "FAIL")
