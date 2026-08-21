@@ -147,3 +147,23 @@ or upgraded.
 
 `v0.0.110` was released 2026-08-18 and is the newest tag on the remote as of
 2026-08-20, so this is likely unreported.
+
+### User impact: this blocks multi-agent consolidation entirely
+
+Pinning to `v0.0.55` is not merely a feature lag. We run one Hermes agent and want
+to add two OpenClaw agents on the same host. On `v0.0.55` that is unsafe: all
+sandboxes share one OpenShell control plane, so onboarding a second agent silently
+re-points the first's inference route (#6315) and a gateway-recreate path can wipe
+the shared `sandboxes.json` (#8420).
+
+The supported mechanism — one gateway per agent via `NEMOCLAW_GATEWAY_PORT` with a
+segregated `~/.nemoclaw/gateways/<port>/` state root — landed in #6711 and #6338
+(July 2026). `v0.0.55` has the port env var (`src/lib/core/ports.ts:120`) but *not*
+the state segregation: `REGISTRY_FILE` is still hardcoded to
+`~/.nemoclaw/sandboxes.json` (`src/lib/state/registry.ts:54`). Setting the port
+alone therefore produces something that looks isolated and is not — matching the
+symptoms in #4865 and #5359.
+
+So this DMI bug is what stands between affected hosts and the multi-gateway support
+you have already shipped. Fixing the matcher unblocks that, not just general
+upgrades.

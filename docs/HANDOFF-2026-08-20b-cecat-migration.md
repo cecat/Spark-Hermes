@@ -1,5 +1,18 @@
 # Migrate cecat (and later luoji) into NemoClaw/OpenShell — checkpoint 3
 
+> **⚠️ SUPERSEDED 2026-08-21 for the GO/NO-GO decision — see
+> [`HANDOFF-2026-08-21-cecat-migration-blocked.md`](HANDOFF-2026-08-21-cecat-migration-blocked.md).**
+> **Do not execute "Next steps" below yet.** Onboarding onto `v0.0.55` is unsafe:
+> all sandboxes share one inference route and one registry, so a second onboard
+> can silently re-point Gandalf's inference or wipe the registry. The mechanism
+> that fixes this (one gateway per agent via `NEMOCLAW_GATEWAY_PORT`) landed
+> upstream *after* `v0.0.55` and *before* `v0.0.110` — inside the range the GB10
+> DMI bug blocks.
+>
+> **Everything else in this document is still correct and still the plan.** The
+> design conclusions, the reversals, and the settled-design table all stand —
+> they are deferred, not wrong. Resume here once the upstream bug is fixed.
+
 **Written 2026-08-20, late session; updated same day after the OPEN QUESTION was
 answered. Supersedes `archive/HANDOFF-2026-08-20-openclaw-migration.md`.**
 Self-contained; start here. Nothing has been migrated yet.
@@ -479,8 +492,10 @@ than guessed at.
 - **`ops/snapshot.sh` is fake** (no exit-code check). Use `ops/backup-sandbox.sh`.
 - **Ask before** pushing, restarting shared services, or touching agent state.
 - **Luoji is male** (Three Body Problem). Use "he".
-- **Filing the upstream NVIDIA bug is the operator's** and is explicitly NOT in
-  the critical path.
+- **Filing the upstream NVIDIA bug is the operator's.** ~~Explicitly NOT in the
+  critical path.~~ **Corrected 2026-08-21: it IS the critical path** — the DMI bug
+  is what blocks the multi-gateway support that makes this migration safe. See
+  `HANDOFF-2026-08-21-cecat-migration-blocked.md`.
 
 ## Working agreement
 
