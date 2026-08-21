@@ -2,9 +2,20 @@
 
 Deferred items that aren't blocking current work. Check this off as they're done.
 
-## Platform upgrade (Hermes / OpenShell / NemoClaw) — BLOCKED UPSTREAM
+## Platform upgrade (Hermes / OpenShell / NemoClaw) — UNBLOCKED, target v0.0.108
 
-**Decided 2026-08-20: stay on NemoClaw `v0.0.55` + OpenShell `0.0.44` + Hermes
+> **⚠️ REVISED 2026-08-21. The "stay on v0.0.55" decision below is SUPERSEDED.**
+> It rested on testing only `v0.0.110`. A per-tag bisect showed the N1x preflight
+> was introduced in **`v0.0.109`** — **`v0.0.108` is clean**, and already has the
+> per-port state segregation (PR #6711) and inference route guard (PR #6338) that
+> make multi-agent safe. **Plan: upgrade to v0.0.108, rebuild Gandalf, then
+> migrate cecat.** Operator approved the rebuild 2026-08-21.
+> Full plan: [`HANDOFF-2026-08-21b-upgrade-to-v0.0.108.md`](HANDOFF-2026-08-21b-upgrade-to-v0.0.108.md).
+>
+> Still true: `v0.0.109`+ cannot onboard or rebuild on this host, so the DMI bug
+> is still worth filing — v0.0.108 buys a working window, not a permanent fix.
+
+**Superseded (2026-08-20): stay on NemoClaw `v0.0.55` + OpenShell `0.0.44` + Hermes
 `0.14.0`. Do not upgrade, and do not patch NVIDIA's source to get around this.**
 
 `v0.0.110` cannot onboard *or* rebuild a sandbox on this host: its preflight

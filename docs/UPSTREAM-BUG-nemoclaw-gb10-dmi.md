@@ -1,6 +1,12 @@
 # Upstream bug report — NemoClaw v0.0.110 rejects Dell-branded GB10 DGX Spark
 
 **Status:** not yet filed. Ready to submit to https://github.com/NVIDIA/NemoClaw/issues
+**⚠️ Update before filing (2026-08-21):** a per-tag bisect narrowed the regression
+window — the N1x preflight is **absent in `v0.0.108` and introduced in `v0.0.109`**.
+Reword the report to name that window rather than implying all upgrades are blocked,
+and note that `v0.0.108` is the last usable release on OEM-branded GB10 hardware.
+That is a sharper report, and honest about our workaround. See
+`HANDOFF-2026-08-21b-upgrade-to-v0.0.108.md`.
 **Found:** 2026-08-20 · **Affects:** every onboard/rebuild on this host
 **Consequence for us:** the Hermes/OpenShell/NemoClaw upgrade is **blocked upstream**.
 We stay on `v0.0.55` until this is fixed. See `docs/FOLLOWUPS.md` → "Platform upgrade".
