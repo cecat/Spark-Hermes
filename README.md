@@ -129,6 +129,28 @@ the rule is forward-looking, not a cleanup task.
 
 ---
 
+## "Gateway" means three different things
+
+Worth pinning down before reading anything else here, because conflating these
+leads to wrong conclusions about what is shared between agents.
+
+| Layer | What it is | Cardinality |
+|---|---|---|
+| **Agent runtime gateway** | Hermes' (or OpenClaw's) own process — the LLM loop. Runs *inside* the sandbox; Hermes listens on 8642. | one per sandbox, fully independent |
+| **OpenShell control plane** | Usually what "gateway" means. Sandbox lifecycle, L7 egress proxy, `inference.local` routing, port forwards. Multi-gateway capable (`openshell gateway list`). | many possible |
+| **NemoClaw's pinned instance** | NemoClaw v0.0.55 hardcodes itself to one control plane named `nemoclaw`. Later versions parameterise it via `NEMOCLAW_GATEWAY_PORT`. | one, on v0.0.55 |
+
+The consequence that matters: a sandbox's model traffic goes to
+`https://inference.local/v1`, a virtual host with **no DNS entry** — the L7 proxy
+intercepts it and routes it per the *control plane's* inference route. Two
+sandboxes on the same control plane therefore share one inference route and (on
+v0.0.55) one registry file, even though their agent runtimes are separate
+processes that never talk to each other.
+
+So "each agent has its own gateway" is true at the runtime layer and misleading at
+the control-plane layer. Isolating agents means separate control planes, not
+separate agent runtimes.
+
 ## Versions known to work
 
 - NemoClaw / nemohermes: `v0.0.55` — what the CLIs report. The npm package
