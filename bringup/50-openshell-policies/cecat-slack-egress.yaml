@@ -1,0 +1,70 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# Permit egress from the **cecat** sandbox to Slack, so the OpenClaw Slack
+# channel plugin can run Socket Mode.
+#
+# This is luoji-slack-egress.yaml with the names changed. Both agents are
+# OpenClaw, so the endpoints and the peer binary are identical; only the preset
+# name and policy key differ. Presets are per-sandbox, so one file cannot serve
+# both.
+#
+# WHY A CUSTOM PRESET RATHER THAN THE BUILT-IN `slack`
+# NemoClaw ships a `slack` preset (visible as ○ slack in `policy list`). luoji
+# does not use it and neither does this: the Socket Mode WebSocket lives on
+# wss-primary.slack.com, and the peer binary must be node. Mirror the agent that
+# demonstrably works rather than experimenting here.
+#
+# WHY IT IS SEPARATE FROM GANDALF'S SLACK EGRESS
+# The two runtimes reach Slack with different binaries. Gandalf is Hermes:
+# Python (slack_sdk/slack_bolt) inside /opt/hermes/.venv. cecat is OpenClaw: a
+# Node process. The L7 proxy resolves the peer binary of whichever process opens
+# the socket, so listing Python paths here would fail closed on every call.
+#
+# THE TWO HOSTS, both required:
+#   slack.com             Web API: apps.connections.open, auth.test,
+#                         users.conversations, chat.postMessage, …
+#   wss-primary.slack.com the WebSocket that Socket Mode upgrades to. Without it
+#                         the adapter retries "failed to retrieve a new WSS URL"
+#                         forever, even with slack.com allowed.
+#
+# Apply with:
+#   bash ops/nmc.sh cecat policy add --from-file bringup/50-openshell-policies/cecat-slack-egress.yaml --yes
+#
+# Do NOT use ops/apply-policies.sh — it pushes every YAML in this directory to
+# gandalf, which would load this preset onto the wrong sandbox.
+#
+# Do NOT use a bare `nemoclaw cecat ...` — the global CLI is v0.0.55 and will
+# hijack the plane. See the header of ops/nmc.sh.
+
+preset:
+  name: cecat-slack-egress
+  description: "cecat sandbox: Slack Web API + Socket Mode WebSocket, for the @openclaw/slack channel plugin (Node)."
+
+network_policies:
+  cecat_slack:
+    name: cecat_slack
+    endpoints:
+      - host: slack.com
+        port: 443
+        protocol: rest
+        enforcement: enforce
+        rules:
+          # auth.test, users.conversations, conversations.history are GET.
+          - allow: { method: GET, path: "/**" }
+          # apps.connections.open (issues the WSS URL) and chat.postMessage
+          # are POST.
+          - allow: { method: POST, path: "/**" }
+
+      # Socket Mode. The initial request is an HTTP GET to /link/ which is then
+      # upgraded (NET:UPGRADE) to a long-lived WebSocket; both must be allowed.
+      - host: wss-primary.slack.com
+        port: 443
+        protocol: rest
+        enforcement: enforce
+        rules:
+          - allow: { method: GET, path: "/**" }
+
+    binaries:
+      # OpenClaw runs the Slack plugin in-process, so the socket is opened by
+      # node itself. Do NOT copy Gandalf's Python paths here.
+      - { path: /usr/local/bin/node }
