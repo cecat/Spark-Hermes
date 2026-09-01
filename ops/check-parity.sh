@@ -53,12 +53,20 @@ agent_pid() { # agent_pid <container>
     # Scan /proc directly. `pgrep -x openclaw-gateway` never matches: the kernel
     # truncates comm to 15 chars ("openclaw-gatewa"). And `pgrep -f` matches its
     # OWN pattern argument, returning a PID that exits before nsenter runs.
+    # Require a readable netns: short-lived helpers (npm/openclaw CLI calls) can
+    # match on comm and then exit before nsenter runs, which previously reported
+    # a healthy agent as "NO INNER JAIL". Long-lived gateways always have one.
     docker exec -u root "$1" sh -c '
         for d in /proc/[0-9]*; do
             p=${d#/proc/}
             c=$(cat "$d/comm" 2>/dev/null) || continue
-            case "$c" in openclaw-gatewa*) echo "$p"; continue ;; esac
-            tr "\0" " " < "$d/cmdline" 2>/dev/null | grep -q "hermes gateway run" && echo "$p"
+            case "$c" in
+                openclaw-gatewa*) ;;
+                hermes*) ;;
+                *) continue ;;
+            esac
+            tr "\0" " " < "$d/cmdline" 2>/dev/null | grep -qE "hermes gateway run|openclaw-gateway" || continue
+            [ -r "$d/ns/net" ] && readlink "$d/ns/net" >/dev/null 2>&1 && echo "$p"
         done
     ' 2>/dev/null | head -1 | tr -d '[:space:]'
 }
