@@ -1,0 +1,20 @@
+[Unit]
+Description=Dead-man's switch — alert if gandalf/cecat/luoji stop stamping heartbeats
+After=docker.service
+Wants=docker.service
+
+[Service]
+Type=oneshot
+# --alert is set to `none` ON PURPOSE. As shipped this unit only logs; it sends
+# nothing. To turn alerting on, change `none` to `telegram` (or `slack`) and
+# `systemctl --user daemon-reload && systemctl --user restart gandalf-agent-liveness.timer`.
+# Do that only after watching the log for a day and confirming the verdicts are
+# what you expect — an alerter that cries wolf on day one gets muted forever.
+#
+# Exit codes: 0 all fresh/asleep, 1 an agent is DEAD, 2 an agent is UNKNOWN.
+# SuccessExitStatus keeps systemd from marking the unit failed for those — the
+# verdict lives in the log and the alert, not in unit state.
+ExecStart=/usr/bin/python3 %h/code/Spark-Hermes/ops/check-agent-liveness.py --verbose --alert none
+SuccessExitStatus=0 1 2
+StandardOutput=append:%h/.hermes/agent-liveness.log
+StandardError=append:%h/.hermes/agent-liveness.log

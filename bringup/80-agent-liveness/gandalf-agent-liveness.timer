@@ -1,0 +1,17 @@
+[Unit]
+Description=Periodically check that all three agents are still stamping heartbeats
+
+[Timer]
+# Every 15 min. Tightest per-agent threshold is 45 min (gandalf), so a dead
+# agent is noticed within ~1h worst case. The script is idempotent and only
+# re-alerts every RENOTIFY_HOURS, so a tight tick costs nothing.
+#
+# OnBootSec is deliberately long: after a reboot the sandboxes take minutes to
+# come up and the agents have not stamped yet, so an early tick would fire a
+# spurious UNKNOWN on every boot.
+OnBootSec=20min
+OnUnitActiveSec=15min
+Persistent=true
+
+[Install]
+WantedBy=timers.target
