@@ -14,7 +14,7 @@
 | Preview what `SOUL.md` will contain without uploading | `bash apply-soul.sh --dry-run` |
 | Push my updated `gandalf/skills/*/SKILL.md` to the agent | `bash apply-skills.sh` |
 | Update scheduled jobs after editing the `cron:` block in `~/.hermes/config.yaml` | `bash apply-cron.sh` |
-| Apply custom OpenShell network policies from `bringup/50-openshell-policies/` | `bash apply-policies.sh` |
+| Apply custom OpenShell network policies from `bringup/50-openshell-policies/` to one named plane | `bash apply-policies.sh <agent> [--shared]` — for Gandalf, `bash apply-policies.sh gandalf --shared` |
 | Change the inference model/provider after editing the `inference:` block in `~/.hermes/config.yaml` | `bash set-inference.sh` |
 | Re-authorize Google (token expired/revoked) | `bash reauth-google.sh` |
 | Take a snapshot before something risky | `bash snapshot.sh <reason>` |

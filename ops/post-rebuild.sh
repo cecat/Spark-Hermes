@@ -249,7 +249,7 @@ fi
 # ── 4. Custom OpenShell policy presets ─────────────────────────────────
 echo ""
 echo "=== restoring custom OpenShell policy presets ==="
-bash "$REPO/ops/apply-policies.sh" 2>&1 | tail -5
+bash "$REPO/ops/apply-policies.sh" gandalf --shared 2>&1 | tail -5
 
 # ── 5. Agent identity + procedures ─────────────────────────────────────
 # A rebuild wipes the sandbox filesystem, so SOUL.md and the skills tree have

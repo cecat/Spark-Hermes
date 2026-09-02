@@ -330,7 +330,12 @@ ensure_sandbox() {
     #
     # Match any non-running state, not just `exited`: a container Docker is still
     # restarting after a reboot reports `created` or `restarting`, and an
-    # exited-only filter reports it missing (see DGX-Spark/ops/boot-recover-sandbox.sh).
+    # exited-only filter reports it missing (see
+    # runlog/RUNLOG-2026-08-08-reboot-recovery.md). This function is now the only
+    # copy of that recovery — the boot-time duplicate it used to cite
+    # (gandalf-boot-recover.service + its script) was removed 2026-08-15 because
+    # argo-shim's interactive Duo gate makes boot automation unachievable, and the
+    # two copies had drifted. See DGX-Spark/README.md § "Boot automation".
     stopped=$(docker ps -a --filter 'status=exited' --filter 'status=created' --filter 'status=restarting' \
         --format '{{.Names}}' 2>/dev/null | grep '^openshell-gandalf-' | head -1 || true)
     if [ -n "$stopped" ]; then

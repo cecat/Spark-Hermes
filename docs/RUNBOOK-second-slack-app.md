@@ -447,11 +447,12 @@ single/multi-account shapes.
   omitting the second yields an endless "failed to retrieve a new WSS URL"
   retry loop even though `slack.com` is allowed. Symptom of a missing preset:
   `DENIED /usr/local/bin/node -> slack.com:443`.
-- **Do not apply policies with `ops/apply-policies.sh`.** It pushes *every* YAML
-  in the directory to **gandalf**, which would load another agent's preset onto
-  the wrong sandbox. Until it learns about per-agent planes, apply by hand:
-  `source ops/<agent>-env.sh` then
-  `openshell sandbox policy add <agent> --from-file <file> --yes`.
+- **Apply policies with `bash ops/apply-policies.sh <agent>`.** The agent
+  argument is mandatory and a `<agent>-*.yaml` file is only ever pushed to that
+  agent's plane, so the script can no longer load one agent's preset onto
+  another's sandbox. Name the new preset `<agent>-slack-egress.yaml` so it is
+  owned. (By hand, equivalently: `source ops/<agent>-env.sh` then
+  `openshell sandbox policy add <agent> --from-file <file> --yes`.)
 - **`openclaw doctor`'s gateway probe is a guaranteed false negative** via
   `docker exec` — different network namespace. Not a fault.
 - **This repo is public.** No Slack channel/user IDs (`C…`, `U…`, `D…`), no

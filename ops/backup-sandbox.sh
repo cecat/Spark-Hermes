@@ -146,7 +146,7 @@ python3 -c "import json,sys; json.load(open('$OUT/nemoclaw-host/sandboxes.json')
     echo "  state dirs: openshell sandbox upload gandalf <local> $SBX/<dir>"
     echo "  registry:   cp nemoclaw-host/sandboxes.json ~/.nemoclaw/"
     echo "  Much of this is also reproducible from Spark-Hermes:"
-    echo "    ops/apply-skills.sh  ops/apply-cron.sh  ops/apply-policies.sh"
+    echo "    ops/apply-skills.sh  ops/apply-cron.sh  ops/apply-policies.sh gandalf --shared"
     echo "    ops/apply-memory-provider.sh  ops/apply-soul.sh  ops/post-rebuild.sh"
     echo "  Not reproducible from the repo — these are why this backup exists:"
     echo "    pairing/ (device + channel pairing)  profiles/  memories/  sessions/"

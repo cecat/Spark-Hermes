@@ -1,14 +1,14 @@
 [Unit]
-Description=Gandalf vLLM host bridge (socat 127.0.0.1+172.19.0.1:8000 -> vllm container 172.18.0.2:8000)
+Description=Gandalf vLLM host bridge (socat 127.0.0.1:8000 -> vllm container, IP resolved at start)
 After=docker.service network-online.target
 Wants=network-online.target
+StartLimitIntervalSec=0
 
 [Service]
 Type=simple
-ExecStartPre=/bin/sh -c 'docker inspect vllm-qwen3-coder-next >/dev/null 2>&1 || (echo "vllm container not running" >&2; exit 1)'
-ExecStart=/usr/bin/socat TCP-LISTEN:8000,bind=127.0.0.1,fork,reuseaddr TCP:172.18.0.2:8000
-Restart=on-failure
-RestartSec=3
+ExecStart=/home/catlett/code/Spark-Hermes/ops/vllm-bridge.sh 127.0.0.1 8000 vllm-qwen3-coder-next 8000
+Restart=always
+RestartSec=5
 
 [Install]
 WantedBy=default.target

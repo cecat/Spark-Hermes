@@ -28,10 +28,10 @@
 #                         forever, even with slack.com allowed.
 #
 # Apply with:
+#   bash ops/apply-policies.sh cecat
+#   (this file is `cecat-*`, so it is owned by cecat and goes nowhere else)
+# or directly:
 #   bash ops/nmc.sh cecat policy add --from-file bringup/50-openshell-policies/cecat-slack-egress.yaml --yes
-#
-# Do NOT use ops/apply-policies.sh — it pushes every YAML in this directory to
-# gandalf, which would load this preset onto the wrong sandbox.
 #
 # Do NOT use a bare `nemoclaw cecat ...` — the global CLI is v0.0.55 and will
 # hijack the plane. See the header of ops/nmc.sh.

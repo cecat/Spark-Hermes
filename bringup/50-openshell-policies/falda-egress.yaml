@@ -37,7 +37,8 @@
 #      `/sandbox/.hermes/scripts/inject-openshell-ca.sh`, do NOT disable verification.
 #
 # Apply with: nemohermes gandalf policy-add --from-file <this-file> --yes
-#         or: bash ../../ops/apply-policies.sh
+#         or: bash ../../ops/apply-policies.sh gandalf --shared
+#             (unprefixed = shared capability preset, so --shared is required)
 
 preset:
   name: falda-egress

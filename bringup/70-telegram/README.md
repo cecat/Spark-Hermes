@@ -54,7 +54,7 @@ and reconcile the env-var names / commands; note any drift in `runlog/`.
 cd ~/code/Spark-Hermes
 
 # 1. Apply the OpenShell egress preset (idempotent; re-applying is a no-op).
-bash ops/apply-policies.sh
+bash ops/apply-policies.sh gandalf --shared
 nemohermes gandalf policy-list | grep -i telegram
 #    ✅ GATE 1: telegram-egress shows as loaded. Else stop.
 

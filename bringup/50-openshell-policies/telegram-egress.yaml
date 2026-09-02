@@ -14,7 +14,8 @@
 #     "Spark") ever blocks it, allow api.telegram.org there too.
 #
 # Apply with: nemohermes gandalf policy-add --from-file <this-file> --yes
-#         or: bash ../../ops/apply-policies.sh
+#         or: bash ../../ops/apply-policies.sh gandalf --shared
+#             (unprefixed = shared capability preset, so --shared is required)
 
 preset:
   name: telegram-egress

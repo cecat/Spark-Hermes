@@ -27,8 +27,10 @@
 #   same allowed_ips, plain `protocol: rest` — the proxy speaks HTTP to FALDA).
 #
 # Apply with: nemohermes gandalf policy-add --from-file <this-file> --yes
-#   (Do NOT use ops/apply-policies.sh — it would also apply the REMOTE
-#    falda-egress.yaml, which is not wanted here.)
+#   (This is an unprefixed shared capability preset, so `ops/apply-policies.sh
+#    gandalf --shared` applies it — but that also applies the REMOTE
+#    falda-egress.yaml alongside it, which is not wanted here. To load only this
+#    one, use the single-file policy-add above.)
 
 preset:
   name: falda-local-egress

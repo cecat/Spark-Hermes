@@ -25,7 +25,8 @@
 #                         the adapter retries "failed to retrieve a new WSS URL"
 #                         forever, even with slack.com allowed.
 #
-# Apply with: bash ops/apply-policies.sh
+# Apply with: bash ops/apply-policies.sh luoji
+#             (this file is `luoji-*`, so it is owned by luoji and goes nowhere else)
 #         or: openshell sandbox policy add luoji --from-file <this-file> --yes
 #             (source ops/luoji-env.sh first — see CLAUDE.md on control planes)
 

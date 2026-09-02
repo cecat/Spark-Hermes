@@ -1,6 +1,21 @@
 #!/usr/bin/env bash
 # Health check for Gandalf. Same shape as bringup/60-smoke-tests.sh but quieter
 # on success — designed to be run periodically.
+#
+# ⚠ THIS SCRIPT IS NOT READ-ONLY. Check 2 POSTs a real chat completion into the
+#   LIVE agent on :8642 (an actual inference request and a real turn, billed and
+#   logged like any other). Despite the name, do not treat `status.sh` as a safe
+#   passive probe: do not run it in a tight loop, and do not run it while
+#   diagnosing agent-side state you do not want perturbed. The POST is load
+#   bearing as an end-to-end inference check — other things may depend on it —
+#   so it stays.
+#
+# ⚠ SCOPE OF WHAT THIS PROVES. Every check below runs from the HOST. Checks that
+#   reach into the sandbox do so via sb_exec; the Slack check (4) does NOT — it
+#   only validates a token from the host and CANNOT see whether the in-sandbox
+#   Slack adapter is actually connected and delivering. See the comment at check
+#   4. A green run of this script is not evidence that Gandalf can receive or
+#   answer a Slack message.
 set -eu
 . "$(dirname "$0")/_lib.sh"
 ensure_path
@@ -51,18 +66,37 @@ else
   warn "Google: token NOT authenticated — run bash ops/reauth-google.sh"
 fi
 
-# 4. Slack token still works
+# 4. Slack TOKEN VALIDITY ONLY — this is NOT a Slack health check.
+#
+# This curl runs on the HOST and asks Slack "is this token valid?". That is all
+# it can answer. It does NOT prove:
+#   - that the in-sandbox Slack adapter process is running
+#   - that its socket-mode WebSocket is connected
+#   - that an inbound DM or app_mention would be received
+#   - that a reply would be delivered
+# The adapter lives inside the sandbox and long-polls Slack itself; the host has
+# no visibility into it. A host probe of an in-sandbox capability is exactly the
+# shape that let an 11-day in-sandbox egress outage pass unnoticed while a
+# host-side check stayed green — so this check is deliberately labelled for what
+# it is, and its output says "token" not "Slack".
+#
+# Verifying the adapter for real requires the layer that owns it: a HUMAN typing
+# a message and observing `Inbound app_mention` → `delivered reply` in
+# `nemohermes gandalf logs`. That cannot be scripted — Slack stamps any
+# app-token-authored message with a bot_id, and the adapter drops bot-authored
+# messages, so a scripted "test" would pass without exercising the real path.
 if [ -n "${SLACK_BOT_TOKEN:-}" ]; then
   SLACK=$(curl -sS -m 10 -H "Authorization: Bearer $SLACK_BOT_TOKEN" https://slack.com/api/auth.test 2>/dev/null)
   if echo "$SLACK" | grep -q '"ok":true'; then
     USER=$(echo "$SLACK" | python3 -c 'import json,sys;print(json.load(sys.stdin)["user"])')
-    info "Slack: bot identity = $USER"
+    info "Slack token: VALID (bot identity = $USER) — token only; adapter connectivity NOT checked"
   else
-    warn "Slack: auth.test failed ($SLACK)"
+    warn "Slack token: auth.test FAILED ($SLACK)"
   fi
 else
-  warn "Slack: SLACK_BOT_TOKEN not in env (~/.hermes/.env missing?)"
+  warn "Slack token: SLACK_BOT_TOKEN not in env (~/.hermes/.env missing?)"
 fi
+note "Slack adapter health is NOT verified by this script — confirm by having a human DM the bot and watching 'nemohermes gandalf logs' for inbound→reply."
 
 # 5. Cron job count
 N=$(sb_exec /usr/local/bin/hermes cron list 2>/dev/null | grep -cE 'active|paused' || true)
