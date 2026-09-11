@@ -1,0 +1,8 @@
+# ── Pipeline liveness — detect ACTIVE-BUT-IDLE components ───────────────────
+# Asks "did this thing produce output recently?", never "is the process up?".
+# Never repairs and never restarts, so a clean run means genuinely clean —
+# unlike run-stack-health.sh, which repairs while it checks.
+# Silent when healthy; prints only stale/missing components; exit 1 if any.
+# Found falda-tap-gandalf frozen 6 days while systemd reported it active.
+# Reasoning: constraints.md C-17.
+23 */6 * * * bash /home/catlett/code/Spark-Hermes/ops/check-pipeline-liveness.sh --quiet >> /home/catlett/code/spark-ai-agents/shared/logs/pipeline-liveness.log 2>&1

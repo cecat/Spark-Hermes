@@ -1,0 +1,80 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# Permit egress from an OpenClaw sandbox to the LOCAL Ollama embedder on the
+# host, so the agent's native `memorySearch` can build and query memory vectors.
+#
+# ── WHY THIS EXISTS ─────────────────────────────────────────────────────────
+#
+# Both OpenClaw agents ran for months with `memorySearch: {provider: "none"}`.
+# They consulted memory ONLY because their .md files told them to — never
+# through native memory tools, and nothing was ever indexed (verified: the
+# gateway state DB has 68 tables and not one memory/embedding/vector table).
+#
+# OpenClaw's default provider is `openai`, which needs an API token. When that
+# token is absent the indexer fails SILENTLY — which is how this went unnoticed
+# for months. `ollama` is a first-class provider in the 2026.7.1 schema
+# (verified via `openclaw config schema`), so pointing at the local embedder
+# removes both the token and the silent-failure mode.
+#
+# ── PATH & ENFORCEMENT MODEL ────────────────────────────────────────────────
+#
+# Ollama binds 127.0.0.1:11434 on the host. The sandbox reaches the host only
+# via the bridge gateway 172.19.0.1, which `host.openshell.internal` resolves
+# to. A socat unit
+# (Spark-Hermes/bringup/45-falda-bridge/spark-ollama-bridge.service) exposes
+# 172.19.0.1:11434 -> 127.0.0.1:11434.
+#
+# The gateway forces ALL egress through the OpenShell L7 proxy, which enforces
+# this policy PER BINARY. Without this preset the proxy returns 403
+# {"error":"policy_denied"} even though the bridge is up.
+#
+# ⚠️ A bare `docker exec curl` BYPASSES the proxy and is NOT a valid test of
+#    enforcement. It has produced at least three false passes on this box.
+#    Verify THROUGH the agent, or through the proxy.
+#
+# `allowed_ips` is REQUIRED: OpenShell's SSRF guard rejects private host-gateway
+# IPs unless the resolved address is explicitly allowlisted (172.19.0.1 is in
+# 172.16/12). Mirrors falda-local-egress.yaml exactly — same host, same
+# allowed_ips, plain `protocol: rest`.
+#
+# ── BINARIES ────────────────────────────────────────────────────────────────
+#
+# Egress presets are keyed on the PEER BINARY and nothing is inherited between
+# agents. The OpenClaw gateway opens sockets as **node**, which is why Gandalf's
+# python-keyed presets could not serve these agents. `node` is the load-bearing
+# entry here; curl is for hand-verification.
+#
+# Apply per agent (NEVER a bare `nemoclaw` — C-1):
+#   bash ops/nmc.sh cecat policy add --from-file bringup/50-openshell-policies/ollama-local-egress.yaml --yes
+#   bash ops/nmc.sh luoji policy add --from-file bringup/50-openshell-policies/ollama-local-egress.yaml --yes
+# Additive; restarts nothing.
+
+preset:
+  name: ollama-local-egress
+  description: "Local self-hosted Ollama embedder on host.openshell.internal:11434 (nomic-embed-text via socat bridge; no auth, loopback-isolated). Backs native memorySearch indexing."
+
+network_policies:
+  ollama_local:
+    name: ollama_local
+    endpoints:
+      - host: host.openshell.internal
+        port: 11434
+        protocol: rest
+        enforcement: enforce
+        allowed_ips:
+          # OpenShell's SSRF guard rejects private host-gateway IPs unless the
+          # resolved address is explicitly allowlisted (172.19.0.1 is in 172.16/12).
+          - 10.0.0.0/8
+          - 172.16.0.0/12
+          - 192.168.0.0/16
+        rules:
+          # /api/tags, /api/version — liveness and model discovery.
+          - allow: { method: GET, path: "/**" }
+          # /api/embeddings, /api/embed — the actual indexing calls.
+          - allow: { method: POST, path: "/**" }
+    binaries:
+      # The OpenClaw gateway (and therefore the memory indexer) runs as node.
+      - { path: /usr/local/bin/node }
+      - { path: /usr/bin/node }
+      # Hand-verification only.
+      - { path: /usr/bin/curl }

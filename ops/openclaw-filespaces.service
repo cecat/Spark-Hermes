@@ -1,0 +1,111 @@
+[Unit]
+# openclaw-filespaces.service — re-establish the host<->sandbox sshfs mounts
+# (and the in-sandbox symlinks) for the OpenClaw agents after a host reboot.
+#
+# NOT ENABLED. Install with:
+#     cp ops/openclaw-filespaces.service ~/.config/systemd/user/
+#     systemctl --user daemon-reload
+#     systemctl --user enable --now openclaw-filespaces.service
+# Lingering must be on for it to run without a login. It already is on this
+# host (/var/lib/systemd/linger/catlett exists) — confirm before enabling:
+#     loginctl show-user catlett -p Linger
+#
+# ── WHY After= IS NOT THE ORDERING MECHANISM HERE ───────────────────────────
+#
+# This is a USER unit. A user unit cannot order itself against a SYSTEM unit:
+# `After=docker.service` resolves against the *user* manager's namespace, where
+# no such unit exists, so systemd silently ignores it. (gandalf-agent-liveness
+# .service carries the same line and gets the same non-effect — it is harmless
+# there because that unit is timer-driven and retries.) Writing After=docker
+# .service here and believing it would produce exactly the failure this unit is
+# meant to prevent: a mount attempted before its target exists, failing once,
+# staying failed, and looking like health.
+#
+# So the ordering is enforced by ExecStartPre, which BLOCKS until both sandbox
+# containers are running and both secondary control planes are listening. That
+# is a real precondition, not a hint: `nemoclaw share mount` talks to the
+# per-agent gateway on :8090/:8091, and the sshfs target does not exist until
+# the container is up.
+#
+# ── AND WHY Restart=on-failure IS LOAD-BEARING ──────────────────────────────
+#
+# The :8090/:8091 control planes are NOT autostarted on this box — they need
+# `bash ops/agent-planes.sh start`, today a manual post-reboot step. So on a
+# cold boot with no operator present, ExecStartPre will time out and the unit
+# will fail. Restart=on-failure with a 60s backoff turns that into "mounts come
+# up on their own within a minute of the operator starting the planes" instead
+# of "mounts are silently absent until someone notices."
+#
+# StartLimitIntervalSec=0 disables the burst limiter on purpose: the default
+# (5 starts / 10s) would give up permanently after ~5 minutes of a plane being
+# down. A restore unit that stops trying is the silent outage.
+Description=Restore OpenClaw agent filespaces (sshfs mounts + in-sandbox symlinks)
+Documentation=file:%h/code/Spark-Hermes/ops/mount-agent-filespaces.sh
+# NOTE (verified 2026-09-10): this line is INERT. `network-online.target` does
+# not exist in the *user* manager — `systemctl --user show network-online.target
+# -p LoadState` returns not-found — so it orders nothing. Kept only because it
+# is harmless and removing it would imply ordering was moved elsewhere; the real
+# precondition is the ExecStartPre poll below. Do not add more After= lines
+# expecting them to work in a user unit.
+After=network-online.target
+Wants=network-online.target
+StartLimitIntervalSec=0
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+
+# ── A SYSTEMD QUOTING TRAP, WRITTEN DOWN SO THE NEXT EDITOR DOES NOT HIT IT ─
+#
+# In a unit file, `$$` is an escaped literal `$` and `%%` is an escaped literal
+# `%`. Both matter here and both fail SILENTLY:
+#   * an unescaped `$` makes systemd attempt its own expansion, so the shell
+#     never sees the construct it was written to see;
+#   * `${p%%:*}` written literally is delivered to bash as `${p%:*}` — a
+#     DIFFERENT operator (shortest- vs longest-suffix strip).
+# Rather than escape a `%` correctly, the loops below avoid `%` entirely and
+# iterate over explicit agent/port pairs. Every `$` intended for bash is `$$`.
+#
+# Wait for the real preconditions. /dev/tcp is used instead of `ss` so the unit
+# has no dependency on iproute2's install path. 180s ceiling; the outer
+# Restart=on-failure covers anything longer.
+ExecStartPre=/bin/bash -c 'i=0; \
+while [ "$$i" -lt 180 ]; do \
+  c=0; \
+  docker ps --format "{{.Names}}" | grep -q "^openshell-default--cecat-" && c=$$(( c + 1 )); \
+  docker ps --format "{{.Names}}" | grep -q "^openshell-default--luoji-" && c=$$(( c + 1 )); \
+  (exec 3<>/dev/tcp/127.0.0.1/8090) 2>/dev/null && c=$$(( c + 1 )); \
+  (exec 3<>/dev/tcp/127.0.0.1/8091) 2>/dev/null && c=$$(( c + 1 )); \
+  if [ "$$c" -eq 4 ]; then exit 0; fi; \
+  i=$$(( i + 1 )); sleep 1; \
+done; \
+echo "preconditions not met after 180s: need both sandboxes running and both planes listening on :8090 and :8091 (try: bash %h/code/Spark-Hermes/ops/agent-planes.sh start)" >&2; \
+exit 1'
+
+ExecStart=/bin/bash %h/code/Spark-Hermes/ops/mount-agent-filespaces.sh --mount
+
+# Prove it, or fail loudly. mount-agent-filespaces.sh exits 0 in cases where a
+# mount did not actually land (it only sets RC=1 when a sandbox is missing), so
+# the unit does its own post-check. A mount that is present but whose transport
+# endpoint is dead still satisfies mountpoint(1), hence the real read under a
+# timeout.
+ExecStartPost=/bin/bash -c 'rc=0; \
+check() { \
+  M="%h/.nemoclaw/gateways/$$2/mounts/$$1"; \
+  if ! mountpoint -q "$$M"; then echo "FAIL $$1: not mounted at $$M" >&2; return 1; fi; \
+  n=$$(timeout 10 ls -1 "$$M/.openclaw/workspace" 2>/dev/null | wc -l); \
+  if [ "$$n" -lt 1 ]; then echo "FAIL $$1: mounted but workspace unreadable or empty (entries=$$n)" >&2; return 1; fi; \
+  echo "OK   $$1: mounted, workspace entries=$$n"; return 0; }; \
+check cecat 8090 || rc=1; \
+check luoji 8091 || rc=1; \
+exit $$rc'
+
+Restart=on-failure
+RestartSec=60
+TimeoutStartSec=300
+
+StandardOutput=append:%h/code/Spark-Hermes/runlog/openclaw-filespaces.log
+StandardError=append:%h/code/Spark-Hermes/runlog/openclaw-filespaces.log
+
+[Install]
+WantedBy=default.target

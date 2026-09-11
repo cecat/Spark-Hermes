@@ -1,0 +1,60 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# Permit egress from the **luoji** sandbox to the Telegram Bot API, so the
+# OpenClaw Telegram channel plugin can long-poll getUpdates and send replies.
+#
+# This is cecat-telegram-egress.yaml with the names changed. Both agents are
+# OpenClaw, so the endpoints and the peer binary are identical; only the preset
+# name and policy key differ. Presets are per-sandbox, so one file cannot serve
+# both.
+#
+# WHY THIS IS SEPARATE FROM telegram-egress.yaml (Gandalf's)
+# Egress presets key on the **peer binary**. Gandalf is Hermes: the adapter is
+# Python inside /opt/hermes/.venv, and telegram-egress.yaml lists only Python +
+# the hermes launcher. luoji is OpenClaw: the plugin runs in-process and the
+# socket is opened by node. Gandalf's preset therefore cannot serve him — it
+# would fail closed on every call. Exactly the same split as the Slack presets.
+#
+# WHY THE ENDPOINT LIST IS TIGHTER THAN GANDALF'S
+# This mirrors NemoClaw v0.0.108's own OpenClaw Telegram preset
+# (src/lib/messaging/channels/telegram/policy/openclaw.yaml), which scopes to
+# /bot*/** rather than /**. Upstream is authoritative for the OpenClaw side;
+# Gandalf's broader paths are left alone.
+#
+# ONE HOST covers everything:
+#   api.telegram.org  Bot API (getUpdates long-poll, sendMessage, …) on
+#                     /bot<token>/…, and file downloads on /file/bot<token>/…
+# No host-side daemon is needed — unlike Signal, the Telegram adapter is
+# in-process, the same shape as Slack Socket Mode.
+#
+# Apply with:
+#   bash ops/nmc.sh luoji policy add --from-file bringup/50-openshell-policies/luoji-telegram-egress.yaml --yes
+#
+# Do NOT use a bare `nemoclaw luoji ...` — the global CLI is v0.0.55 and will
+# hijack the plane. See the header of ops/nmc.sh.
+
+preset:
+  name: luoji-telegram-egress
+  description: "luoji sandbox: Telegram Bot API (long-poll + send + file download) for the OpenClaw telegram channel plugin (Node)."
+
+network_policies:
+  luoji_telegram:
+    name: luoji_telegram
+    endpoints:
+      - host: api.telegram.org
+        port: 443
+        protocol: rest
+        enforcement: enforce
+        rules:
+          # getUpdates is a long-lived GET; getMe/getChat are GET.
+          - allow: { method: GET, path: "/bot*/**" }
+          # sendMessage / sendChatAction / setMyCommands are POST.
+          - allow: { method: POST, path: "/bot*/**" }
+          # Voice/image/document downloads.
+          - allow: { method: GET, path: "/file/bot*/**" }
+
+    binaries:
+      # OpenClaw runs the Telegram plugin in-process, so the socket is opened by
+      # node itself. Do NOT copy Gandalf's Python paths here.
+      - { path: /usr/local/bin/node }
+      - { path: /usr/bin/node }

@@ -1,0 +1,41 @@
+[Unit]
+# SPDX-License-Identifier: Apache-2.0
+#
+# Expose the host's Ollama embedder to the OpenShell sandboxes.
+#
+# SUBSTRATE, not Hermes and not OpenClaw. Ollama serves `nomic-embed-text` and
+# is used by FALDA (host-side) and — once this bridge exists — by BOTH OpenClaw
+# agents' native memorySearch indexing. Named `spark-` deliberately: the old
+# `gandalf-` prefix on the LiteLLM unit misdescribed ownership and caused
+# Spark-Hermes/ops/shutdown.sh to stop a service an OpenClaw tenant depended on.
+# Do not re-prefix this with a gateway name.
+#
+# ── WHY IT IS NEEDED ────────────────────────────────────────────────────────
+#
+# Ollama binds 127.0.0.1:11434 only (verified: `ss -ltn` shows no other bind).
+# A sandbox reaches the host solely through the bridge gateway 172.19.0.1, which
+# `host.openshell.internal` resolves to. Without this socat unit the sandboxes
+# cannot see the embedder at all, and `memorySearch` cannot index.
+#
+# Exactly mirrors gandalf-falda-bridge-openshell.service, which does the same
+# job for FALDA on :8077 and has run since 2026-07-28.
+#
+# ── SECURITY NOTE ───────────────────────────────────────────────────────────
+#
+# This widens Ollama's reachability from host-loopback to the docker bridge
+# network. That is the same exposure FALDA already accepts on :8077. Access is
+# still gated per-agent by the OpenShell L7 proxy: a sandbox without the
+# `ollama-local-egress` preset gets 403 policy_denied even with the bridge up.
+# The bridge is necessary but NOT sufficient — the policy is the real control.
+Description=Ollama embedder host bridge (socat 172.19.0.1:11434 -> host loopback 127.0.0.1:11434)
+After=network-online.target ollama.service
+Wants=network-online.target ollama.service
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/socat TCP-LISTEN:11434,bind=172.19.0.1,fork,reuseaddr TCP:127.0.0.1:11434
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=default.target

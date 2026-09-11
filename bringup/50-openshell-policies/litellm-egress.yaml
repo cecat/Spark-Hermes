@@ -1,0 +1,92 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# Permit egress from an OpenClaw sandbox to the LiteLLM router on the host, so
+# the agent's inference calls inherit the Argo -> Qwen fallback chain.
+#
+# ── WHY ─────────────────────────────────────────────────────────────────────
+#
+# Gandalf routes inference through LiteLLM (`~/.hermes/config.yaml:20` ->
+# http://host.openshell.internal:4000/v1) and therefore gets
+# `litellm_settings.fallbacks`: when an Argo call fails, the same prompt is
+# retried against local vLLM/Qwen. He keeps working through a Duo re-auth or a
+# tunnel drop. The FALDA distillers route the same way.
+#
+# **cecat and luoji do not.** They point straight at `inference.local`, have
+# zero `fallback` keys, and simply fail when Argo is unavailable. This preset is
+# half of closing that gap; the other half is the `models.providers.litellm`
+# block applied by `ops/apply-litellm-routing.sh`.
+#
+# This is the OpenClaw side adopting a mechanism Hermes already proves — not a
+# new one. LiteLLM is substrate, not Hermes: `spark-litellm.service` was
+# renamed from `gandalf-litellm.service` on 2026-09-03 precisely because the
+# gateway-name prefix misdescribed ownership. Routing OpenClaw through it does
+# NOT couple the gateways (C-2 / GOALS.md doctrine): if Hermes vanishes,
+# LiteLLM and this path are unaffected.
+#
+# ── PATH & ENFORCEMENT ──────────────────────────────────────────────────────
+#
+# LiteLLM binds 127.0.0.1:4000 on the host. A sandbox reaches the host only via
+# the bridge gateway 172.19.0.1, which `host.openshell.internal` resolves to.
+# `spark-litellm-bridge.service` (socat) already exposes 172.19.0.1:4000 ->
+# 127.0.0.1:4000 — **verified listening, no new host plumbing needed.**
+#
+# The gateway forces ALL egress through the OpenShell L7 proxy, which enforces
+# per binary. Without this preset the proxy returns 403 {"error":"policy_denied"}
+# even though the bridge is up.
+#
+# ⚠️ A bare `docker exec curl` BYPASSES the proxy and is NOT a valid test of
+#    enforcement — that asymmetry produced three false passes on this box.
+#
+# `allowed_ips` is REQUIRED: OpenShell's SSRF guard rejects private host-gateway
+# IPs unless the resolved address is explicitly allowlisted (172.19.0.1 is in
+# 172.16/12). Mirrors `falda-local-egress.yaml`, the only worked example of
+# reaching host.openshell.internal from a sandbox.
+#
+# **`http://`, not `https://`** — LiteLLM terminates no TLS; `protocol: rest`
+# over plain HTTP, exactly as the FALDA preset does for :8077.
+#
+# ── BINARIES ────────────────────────────────────────────────────────────────
+#
+# Presets are keyed on the PEER BINARY and nothing is inherited between agents.
+# OpenClaw makes inference calls from the gateway process, which runs as
+# **node** — copied from each agent's own working Slack preset. **Do NOT copy
+# Gandalf's python paths**; his stack calls out from a Python venv and a
+# python-keyed preset here would silently never match.
+#
+# Apply per agent (NEVER a bare `nemoclaw` — C-1):
+#   bash ops/nmc.sh cecat policy add --from-file bringup/50-openshell-policies/litellm-egress.yaml --yes
+#   bash ops/nmc.sh luoji policy add --from-file bringup/50-openshell-policies/litellm-egress.yaml --yes
+# Additive; restarts nothing. Applying it alone is harmless — it opens a route
+# the agent does not use until the provider block is switched.
+
+preset:
+  name: litellm-egress
+  description: "LiteLLM router on host.openshell.internal:4000 (OpenAI-shape; carries the Argo->Qwen fallback chain). Substrate service shared with Gandalf and the FALDA distillers."
+
+network_policies:
+  litellm:
+    name: litellm
+    endpoints:
+      - host: host.openshell.internal
+        port: 4000
+        protocol: rest
+        enforcement: enforce
+        allowed_ips:
+          # OpenShell's SSRF guard rejects private host-gateway IPs unless the
+          # resolved address is explicitly allowlisted (172.19.0.1 is in 172.16/12).
+          - 10.0.0.0/8
+          - 172.16.0.0/12
+          - 192.168.0.0/16
+        rules:
+          # /v1/models and health probes.
+          - allow: { method: GET, path: "/**" }
+          # /v1/chat/completions — the actual inference calls.
+          - allow: { method: POST, path: "/**" }
+    binaries:
+      # OpenClaw calls the model from the gateway process, which runs as node.
+      # Same paths as each agent's working Slack preset. Do NOT use Gandalf's
+      # python paths here.
+      - { path: /usr/local/bin/node }
+      - { path: /usr/bin/node }
+      # Hand-verification only.
+      - { path: /usr/bin/curl }

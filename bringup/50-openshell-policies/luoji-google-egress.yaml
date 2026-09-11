@@ -1,0 +1,201 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# Permit egress from the **luoji** sandbox to Google's APIs for the `gog` Go
+# CLI (github.com/steipete/gogcli, vendored at ~/code/gogcli).
+#
+# NEW FILE rather than an edit to google-workspace-egress.yaml (Gandalf's) or to
+# cecat-egress.yaml. Presets are per-sandbox and key on the calling binary;
+# neither of those files can serve luoji, and editing a shared file to add a Go
+# binary would put a `gog` entry on planes that do not have gog. Same split as
+# luoji-slack-egress.yaml / luoji-telegram-egress.yaml. Gandalf's preset is
+# untouched.
+#
+# ── WHY GANDALF'S PRESET CANNOT BE COPIED ────────────────────────────────────
+#
+# Two independent reasons, both fatal:
+#
+#   1. BINARY.  The L7 proxy resolves the peer binary of whichever process opens
+#      the socket. google-workspace-egress.yaml lists only Python interpreter
+#      paths. `gog` is a statically-dispatched Go process; it matches none of
+#      them and would fail closed on every call.
+#
+#   2. GATE.  Gandalf's preset allows `POST /**` on gmail.googleapis.com AND on
+#      www.googleapis.com. For luoji that is equivalent to no email gate at all.
+#      Human-in-the-loop on outbound email is a standing requirement for him, so
+#      the Gmail SEND route is deliberately absent below. Under this policy
+#      engine an unlisted route is REFUSED, so the omission IS the block.
+#
+# ── THE GMAIL SEND BLOCK — read before editing anything under gmail ──────────
+#
+# The Go client (google.golang.org/api v0.260.0, gmail/v1) reaches send at
+# exactly four paths:
+#
+#     POST /gmail/v1/users/{userId}/messages/send
+#     POST /gmail/v1/users/{userId}/drafts/send
+#     POST /upload/gmail/v1/users/{userId}/messages/send
+#     POST /upload/gmail/v1/users/{userId}/drafts/send
+#
+# None of them is listed. The draft rules below are written as EXACT paths
+# (`/gmail/v1/users/*/drafts`, no trailing `/**`) precisely so that they cannot
+# widen to `drafts/send`. `*` is a single-segment glob — `drafts` and
+# `drafts/send` are different lengths, so the exact rule cannot reach send.
+#
+# DO NOT, under any circumstances:
+#   - write `POST` with path `/**` on gmail.googleapis.com;
+#   - widen the draft rules to `/gmail/v1/users/*/drafts/**`;
+#   - add `/gmail/**` to the www.googleapis.com rules below.
+# Each of those silently restores the send route and defeats the gate. Sending
+# is done host-side by shared/scripts/cron/send-email.sh, which holds the
+# approved-recipient list and the human-approval step. That gate is deliberately
+# OUTSIDE the sandbox; nothing here should make it bypassable.
+#
+# ── www.googleapis.com — DELIBERATE, PATH-SCOPED, NOT A COPY OF GANDALF'S ────
+#
+# The Go client library hardcodes `www.googleapis.com` as the base host for
+# Drive v3 and Calendar v3 (drive-gen.go:99 `basePath =
+# "https://www.googleapis.com/drive/v3/"`, calendar-gen.go likewise). It is not
+# an alias we chose and there is no option to point those services at
+# drive.googleapis.com. Omitting the host entirely would break `gog drive
+# upload`, which is luoji's one proven daily Google operation.
+#
+# www.googleapis.com ALSO fronts Gmail at /gmail/v1/..., which is why Gandalf's
+# blanket `POST /**` rule for this host must NOT be replicated: it would restore
+# the send route under a second name. The rules below are therefore scoped to
+# explicit path prefixes and `/gmail/**` is absent. Adding a broad rule here is
+# the single easiest way to break the email gate by accident.
+#
+# `POST /drive/v3/files/*/permissions` is also deliberately absent: Drive
+# permission grants accept `sendNotificationEmail`, which makes Google send mail
+# on luoji's behalf. That is an email egress path wearing a Drive costume.
+#
+# ── HOSTS NOT LISTED, AND WHY ────────────────────────────────────────────────
+#
+#   drive.googleapis.com   Not used. The Go Drive v3 client goes to
+#                          www.googleapis.com/drive/v3/ (see above).
+#   accounts.google.com    Only the interactive OAuth consent dance touches it,
+#                          and that runs host-side against a localhost redirect.
+#                          Token REFRESH is oauth2.googleapis.com, listed below.
+#   sheets/docs/tasks/
+#   slides/keep/chat/...   Each is its own host in the Go client and none is in
+#                          luoji's demonstrated use. Add a host block when a
+#                          runbook actually needs one; unlisted is refused.
+#
+# Apply with:
+#   bash ops/nmc.sh luoji policy add --from-file bringup/50-openshell-policies/luoji-google-egress.yaml --yes
+#
+# Do NOT use a bare `nemoclaw luoji ...` — the global CLI is v0.0.55 and will
+# hijack the plane (see the header of ops/nmc.sh). Do NOT use
+# ops/apply-policies.sh — it globs every YAML in this directory and pushes each
+# one to gandalf.
+
+preset:
+  name: luoji-google-egress
+  description: "luoji sandbox: Google APIs for the gog Go CLI — Drive, Calendar, Contacts, Gmail READ + DRAFT. Gmail SEND is deliberately NOT allowed; sending is gated host-side."
+
+network_policies:
+  luoji_google:
+    name: luoji_google
+    endpoints:
+
+      # ── OAuth token refresh ────────────────────────────────────────────
+      # golang.org/x/oauth2/google Endpoint.TokenURL is
+      # https://oauth2.googleapis.com/token. Every gog invocation hits this
+      # first when the cached access token is stale.
+      - host: oauth2.googleapis.com
+        port: 443
+        protocol: rest
+        enforcement: enforce
+        rules:
+          - allow: { method: POST, path: "/token" }
+
+      # ── Gmail: READ and DRAFT only. NO SEND. ───────────────────────────
+      - host: gmail.googleapis.com
+        port: 443
+        protocol: rest
+        enforcement: enforce
+        rules:
+          # Reads: messages, threads, labels, profile, attachments, history,
+          # settings, and drafts.list/get. All of Gmail's read surface is GET;
+          # none of the four send routes is a GET, so this cannot leak send.
+          - allow: { method: GET, path: "/gmail/v1/users/**" }
+
+          # Draft CREATE. Exact path, no trailing wildcard — see the block
+          # comment above. Widening this to `/drafts/**` restores drafts/send.
+          - allow: { method: POST, path: "/gmail/v1/users/*/drafts" }
+          # Draft create with an attachment (media upload variant).
+          - allow: { method: POST, path: "/upload/gmail/v1/users/*/drafts" }
+
+          # Draft UPDATE is PUT drafts/{id}. Kept separate from the POST rules
+          # so that no POST rule ever carries a wildcard segment after
+          # `drafts`. There is no PUT send route in the API.
+          - allow: { method: PUT, path: "/gmail/v1/users/*/drafts/*" }
+          - allow: { method: PUT, path: "/upload/gmail/v1/users/*/drafts/*" }
+
+          # Deliberately NOT allowed, do not add without a gate decision:
+          #   POST /gmail/v1/users/*/messages/send        (send)
+          #   POST /gmail/v1/users/*/drafts/send          (send a draft)
+          #   POST /gmail/v1/users/*/messages/*/modify    (label/read-state
+          #        changes for triage — safe, but outside the read+draft scope
+          #        this preset was authorised for; add deliberately, not by
+          #        reflex)
+          #   DELETE anything                             (destructive)
+
+      # ── Drive v3 and Calendar v3 — see the www.googleapis.com note above ─
+      - host: www.googleapis.com
+        port: 443
+        protocol: rest
+        enforcement: enforce
+        rules:
+          # Drive read: files.list/get/export/download, about, drives.
+          - allow: { method: GET, path: "/drive/v3/**" }
+          # Drive write: files.create / files.update. This is `gog drive upload`
+          # and `gog drive upload --replace <id>`, luoji's daily health-report
+          # artifact push (RUNBOOK_HEALTH_REPORT.md).
+          - allow: { method: POST, path: "/upload/drive/v3/files" }
+          - allow: { method: PATCH, path: "/upload/drive/v3/files/*" }
+          - allow: { method: POST, path: "/drive/v3/files" }
+          - allow: { method: PATCH, path: "/drive/v3/files/*" }
+          # NOTE: /drive/v3/files/*/permissions is absent on purpose — a
+          # permission grant can make Google send notification email.
+
+          # Calendar v3 read. Write is not in luoji's demonstrated use; add
+          # POST/PUT rules when a runbook needs them.
+          - allow: { method: GET, path: "/calendar/v3/**" }
+
+          # OAuth userinfo — gog resolves the signed-in identity here
+          # (internal/googleauth/accounts_server.go:69).
+          - allow: { method: GET, path: "/oauth2/v2/userinfo" }
+
+          # Deliberately NOT allowed: /gmail/**, and any rule with path "/**".
+          # Either one re-exposes the Gmail send route under this hostname.
+
+      # ── Contacts (People API) — read only ──────────────────────────────
+      # `gog contacts search NAME`, RUNBOOK_SLACK_POST.md:62.
+      - host: people.googleapis.com
+        port: 443
+        protocol: rest
+        enforcement: enforce
+        rules:
+          - allow: { method: GET, path: "/**" }
+
+    binaries:
+      # `gog` is a Go binary. Do NOT copy Gandalf's Python interpreter paths
+      # here (google-workspace-egress.yaml:97-100) and do NOT copy luoji's node
+      # paths from luoji-slack-egress.yaml — the proxy matches the process that
+      # opens the socket, and for gog that is gog itself. A runbook that calls
+      # gog from inside `exec: python3 <<EOF` is still seen as gog, the same way
+      # cecat's python-calls-curl is seen as curl (cecat-egress.yaml:139-145).
+      #
+      # THE PATH BELOW IS THE REAL BINARY, NOT THE ONE ON PATH.
+      # ops/apply-luoji-google.sh installs two things: a wrapper shell script at
+      # /usr/local/bin/gog (which supplies GOG_KEYRING_PASSWORD, since the
+      # keyring file backend cannot prompt without a TTY) and the real Go binary
+      # at /usr/local/lib/gog/gog. The wrapper `exec`s the real binary, so the
+      # process that opens the socket — and therefore the peer binary the proxy
+      # resolves via /proc/<pid>/exe — is /usr/local/lib/gog/gog.
+      #
+      # Listing /usr/local/bin/gog instead would match NOTHING and fail closed
+      # on every call: that path holds a /bin/sh script, which is gone from the
+      # process image by the time any socket is opened. Keep this in sync with
+      # GOG_REAL in ops/apply-luoji-google.sh.
+      - { path: /usr/local/lib/gog/gog }

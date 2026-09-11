@@ -1,0 +1,77 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# Permit the Hugging Face CDN hosts that model downloads REDIRECT to.
+#
+# ── WHY THE BUILT-IN `huggingface` PRESET IS NOT ENOUGH ─────────────────────
+#
+# The stock `huggingface` preset is enabled on both OpenClaw agents (via the
+# balanced tier) and it correctly allows `huggingface.co`. But a model fetch is
+# two hops: the API host answers with a 302 to a CDN host, and the CDN host is
+# NOT in the preset. Measured on cecat 2026-09-09 while enabling native memory:
+#
+#   ALLOWED  GET http://huggingface.co:443/ggml-org/embeddinggemma-300m-qat-q8_0-GGUF/
+#                resolve/main/embeddinggemma-300m-qat-Q8_0.gguf   [policy:huggingface]
+#   DENIED   /usr/local/bin/node -> us.aws.cdn.hf.co:443
+#            [reason: endpoint us.aws.cdn.hf.co:443 is not allowed by any policy]
+#
+# Net effect: `provider: "local"` cannot fetch its embedding model, memory stays
+# in FTS-only mode, and the only visible symptom is a hung `openclaw memory
+# status --deep`. Without `nemoclaw <agent> logs` this reads as a hang, not a
+# policy denial — the tool itself only sees the proxy's 403.
+#
+# ── WHY THIS IS A SEPARATE FILE ─────────────────────────────────────────────
+#
+# Do not edit the built-in preset — it is stock and will be replaced on upgrade.
+# This is an additive per-agent preset covering only the CDN hop.
+#
+# Scope is deliberately narrow: CDN hosts only, GET only. Model blobs are
+# fetched with GET; nothing here needs to POST. `huggingface.co` itself is left
+# to the built-in preset.
+#
+# ── BINARIES ────────────────────────────────────────────────────────────────
+#
+# Presets are keyed on the PEER BINARY and nothing is inherited between agents.
+# The download is performed by the OpenClaw gateway itself, which runs as
+# **node** — the same reason the Telegram preset keys on node rather than
+# python. curl is included for hand-verification only.
+#
+# Apply per agent (NEVER a bare `nemoclaw` — C-1):
+#   bash ops/nmc.sh cecat policy add --from-file bringup/50-openshell-policies/hf-cdn-egress.yaml --yes
+#   bash ops/nmc.sh luoji policy add --from-file bringup/50-openshell-policies/hf-cdn-egress.yaml --yes
+# Additive; restarts nothing.
+
+preset:
+  name: hf-cdn-egress
+  description: "Hugging Face CDN hosts that huggingface.co redirects to for model blob downloads. Complements the built-in huggingface preset, which covers only the API host."
+
+network_policies:
+  hf_cdn:
+    name: hf_cdn
+    endpoints:
+      # The observed redirect target for GGUF blobs from this region.
+      - host: us.aws.cdn.hf.co
+        port: 443
+        protocol: rest
+        enforcement: enforce
+        rules:
+          - allow: { method: GET, path: "/**" }
+      # Hugging Face also serves blobs from these depending on region/routing.
+      # Included so a region change does not silently re-break model downloads.
+      - host: cdn-lfs.huggingface.co
+        port: 443
+        protocol: rest
+        enforcement: enforce
+        rules:
+          - allow: { method: GET, path: "/**" }
+      - host: cdn-lfs-us-1.hf.co
+        port: 443
+        protocol: rest
+        enforcement: enforce
+        rules:
+          - allow: { method: GET, path: "/**" }
+    binaries:
+      # The gateway performs the download itself; it runs as node.
+      - { path: /usr/local/bin/node }
+      - { path: /usr/bin/node }
+      # Hand-verification only.
+      - { path: /usr/bin/curl }

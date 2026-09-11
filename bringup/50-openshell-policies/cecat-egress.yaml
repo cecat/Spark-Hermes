@@ -1,7 +1,10 @@
 # SPDX-License-Identifier: Apache-2.0
 #
-# DRAFT — Step 1 (P3-1) of docs/HANDOFF-2026-08-20-openclaw-migration.md.
-# Not yet applied. cecat is not yet onboarded onto OpenShell.
+# Step 1 (P3-1) of docs/HANDOFF-2026-08-20-openclaw-migration.md.
+# cecat is now onboarded onto OpenShell (:8090 plane). Not yet applied to her
+# sandbox — `ops/nmc.sh cecat policy list` on 2026-09-02 shows only
+# cecat-slack-egress as user-added. Applying this is a prerequisite for
+# ops/apply-cecat-google.sh; see REMAINING TO GO LIVE in that script's header.
 #
 # Egress for the **cecat** sandbox once she moves off hand-rolled Compose and
 # onto NemoClaw/OpenShell. Derived by reading all 11 runbooks and all 8 scripts
@@ -34,17 +37,24 @@
 #     - forms.gle / docs.google.com / uhaul.com / mychart.duly.com / tpc.dev —
 #       all prose mentions in memory/*.md and guide docs, not code paths.
 #
-# ── ⚠️ BLOCKER, not a policy problem: all four scripts use urllib ────────────
+# ── ✅ RESOLVED 2026-08-20: the urllib blocker is gone for the two that matter ─
 #
-#   check-concerts.py, contacts-api.py, gmail-api.py, reauth.py
+# This header used to warn that all four scripts used urllib, whose
+# CONNECT-tunnel path the L7 proxy DENIES even for allowlisted hosts (see
+# CLAUDE.md → Network egress gotchas), so applying this preset would not have
+# made them work.
 #
-# The L7 proxy in this OpenShell build (0.0.44) DENIES urllib's CONNECT-tunnel
-# path even for allowlisted hosts (see CLAUDE.md → Network egress gotchas).
-# Applying this preset will NOT make them work. gmail-api.py and
-# contacts-api.py must be ported to httpx or curl BEFORE onboard, or every
-# runbook fails with the exact silent-403 failure mode Step 1 warns about.
-# Both are stdlib-only by design ("no pip dependencies") — that design goal
-# is what breaks under OpenShell.
+# gmail-api.py and contacts-api.py were ported to curl on 2026-08-20 — see the
+# _http() comment block in gmail-api.py, which cites this exact failure mode.
+# They still import urllib.parse, but only for urlencode; no urllib call opens a
+# socket. That is why `/usr/bin/curl` in `binaries:` below is load-bearing.
+#
+# STILL urllib, deliberately left alone — neither runs in the sandbox:
+#   - reauth.py       host-side interactive browser dance (redirect_uri
+#                     http://localhost); see the note below.
+#   - check-concerts.py  host crontab only (`15 9 * * 1,4`); it also reads a
+#                     host path for its API key. Port it before ever moving it
+#                     inside the sandbox.
 #
 # ── Also blocking, tracked separately ────────────────────────────────────────
 #
@@ -58,7 +68,12 @@
 #     listed below only to cover a future in-sandbox re-auth; drop it if the
 #     dance stays on the host.
 #
-# Apply with: nemohermes sandbox policy add cecat --from-file <this-file> --yes
+# Apply with:
+#   bash ops/nmc.sh cecat policy add --from-file bringup/50-openshell-policies/cecat-egress.yaml --yes
+#
+# Do NOT use a bare `nemoclaw cecat ...` — the global CLI is v0.0.55 and will
+# hijack the plane. Do NOT use ops/apply-policies.sh — it is hardcoded to
+# gandalf. Same rules as cecat-telegram-egress.yaml.
 
 preset:
   name: cecat-egress

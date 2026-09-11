@@ -104,7 +104,18 @@ litellm_settings:
     - claudehaiku45: ["Qwen/Qwen3-Coder-Next-FP8"]
     - hermes-agent: ["Qwen/Qwen3-Coder-Next-FP8"]
   num_retries: 2
-  request_timeout: 120
+  # 600s, raised from 120s on 2026-09-10 to match `agents.defaults.timeoutSeconds`
+  # on every consumer (Gandalf, the FALDA distillers, and — once routed — cecat
+  # and luoji).
+  #
+  # WHY IT MATTERS: at 120s a slow-but-working Argo call is cancelled and the
+  # fallback answers instead. That is a silent QUALITY downgrade wearing the
+  # costume of resilience — the caller gets a Qwen answer and no error, so
+  # "Argo is slow" is indistinguishable from "the agent got dumber". The
+  # fallback should fire when Argo is DOWN, not when it is merely slow.
+  #
+  # One timeout for all four consumers, rather than per-consumer drift.
+  request_timeout: 600
 
 # ── General settings ────────────────────────────────────────────────────────
 general_settings:

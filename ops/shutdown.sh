@@ -441,9 +441,23 @@ phase_sibline() {
 # still needs to run to take down what's on the far end.
 
 phase_plumbing() {
-    hdr "Phase 6: LiteLLM + socat bridges"
-    stop_unit gandalf-litellm-bridge.service        "172.19.0.1:4000 → LiteLLM"
-    stop_unit gandalf-litellm.service               "LiteLLM proxy :4000"
+    hdr "Phase 6: socat bridges"
+    # LiteLLM is NOT stopped here any more (2026-09-03).
+    #
+    # It was `gandalf-litellm{,-bridge}.service` and this phase stopped it —
+    # but `falda-distiller-luoji`, an OpenClaw-tenant process, calls it. That
+    # made Hermes's shutdown reach across and break an OpenClaw dependency,
+    # which the doctrine forbids: "if gateway X vanishes, does gateway Y
+    # notice?" It did.
+    #
+    # LiteLLM was always substrate — a generic OpenAI-shape router whose config
+    # holds three Argo routes and nothing Gandalf-specific. Only its name said
+    # otherwise, and the name is what let this go unnoticed. It is now
+    # `spark-litellm{,-bridge}.service`, owned by DGX-Spark and stopped by
+    # DGX-Spark/ops/shutdown.sh AFTER both gateway groups.
+    #
+    # Do not re-add it here. Both gateways depending on a substrate service is
+    # explicitly allowed — tenants share plumbing.
     stop_unit gandalf-falda-bridge-openshell.service "172.19.0.1:8077 → FALDA"
     stop_unit gandalf-vllm-bridge.service           "127.0.0.1:8000 → vLLM"
     stop_unit gandalf-vllm-bridge-openshell.service "172.19.0.1:8000 → vLLM"

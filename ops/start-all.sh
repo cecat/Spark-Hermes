@@ -13,8 +13,8 @@ set -euo pipefail
 #   socat 127.0.0.1:8000 → 172.18.0.2:8000        ── gandalf-vllm-bridge.service
 #   socat 172.19.0.1:8000 → 172.18.0.2:8000       ── gandalf-vllm-bridge-openshell.service
 #   socat 172.19.0.1:44497 → 127.0.0.1:44497      ── gandalf-argo-bridge.service
-#   LiteLLM proxy (127.0.0.1:4000)                ── gandalf-litellm.service (Claude+vLLM router)
-#   socat 172.19.0.1:4000 → 127.0.0.1:4000        ── gandalf-litellm-bridge.service
+#   LiteLLM proxy (127.0.0.1:4000)                ── spark-litellm.service (Claude+vLLM router)
+#   socat 172.19.0.1:4000 → 127.0.0.1:4000        ── spark-litellm-bridge.service
 #   gandalf sandbox container                     ── NemoClaw / OpenShell
 #   Hermes Agent gateway (127.0.0.1:8642)         ── inside the sandbox
 #
@@ -249,16 +249,29 @@ ensure_bridges() {
 # ── Layer 3: LiteLLM proxy ──────────────────────────────────────────────────
 
 ensure_litellm() {
-    echo ""; echo "=== LiteLLM proxy (127.0.0.1:4000) ==="
+    # LiteLLM is SUBSTRATE, not Hermes — renamed from gandalf-litellm* to
+    # spark-litellm* on 2026-09-03, because falda-distiller-luoji (an OpenClaw
+    # tenant) depends on it and a Hermes-owned unit that OpenClaw needs
+    # violates the doctrine.
+    #
+    # STARTING it from here is still correct, and is NOT the mirror of the
+    # violation that STOPPING it was. This function is idempotent repair: it
+    # starts LiteLLM only if it is not already healthy. Whichever stack boots
+    # first brings the substrate up; the second finds it healthy and moves on.
+    # Stopping, by contrast, took a live service away from a running dependant.
+    #
+    # When the substrate gains its own startup script, delete this — do not
+    # duplicate it there.
+    echo ""; echo "=== LiteLLM proxy (127.0.0.1:4000) — substrate ==="
 
     # Set when the health probe recovers on a second look, so the restart
     # branch below is skipped without also skipping the bridge check that
     # follows this block.
     local litellm_ok=false
-    if systemctl --user is-active gandalf-litellm.service >/dev/null 2>&1 && litellm_healthy; then
+    if systemctl --user is-active spark-litellm.service >/dev/null 2>&1 && litellm_healthy; then
         info "LiteLLM healthy (Claude round-trip returns 200)"
         litellm_ok=true
-    elif systemctl --user is-active gandalf-litellm.service >/dev/null 2>&1; then
+    elif systemctl --user is-active spark-litellm.service >/dev/null 2>&1; then
         # Re-confirm before restarting: litellm_healthy round-trips through
         # argo-shim to Argonne, so upstream latency looks like a dead proxy.
         warn "LiteLLM health failed — re-confirming for 20s before restarting"
@@ -269,13 +282,13 @@ ensure_litellm() {
     fi
 
     if ! $litellm_ok; then
-        if systemctl --user is-active gandalf-litellm.service >/dev/null 2>&1; then
+        if systemctl --user is-active spark-litellm.service >/dev/null 2>&1; then
             echo ""
             warn "LiteLLM confirmed unhealthy — restarting"
-            systemctl --user restart gandalf-litellm.service
+            systemctl --user restart spark-litellm.service
         else
             warn "Starting LiteLLM..."
-            systemctl --user start gandalf-litellm.service
+            systemctl --user start spark-litellm.service
         fi
 
         if wait_for "LiteLLM warming up" 30 litellm_healthy; then
@@ -292,10 +305,10 @@ ensure_litellm() {
     # The LiteLLM bridge (socat 172.19.0.1:4000 → 127.0.0.1:4000) — sandbox uses this.
     if $LITELLM_RESTARTED; then
         warn "LiteLLM was restarted — restarting bridge so it reconnects"
-        systemctl --user restart gandalf-litellm-bridge.service 2>/dev/null || \
-            systemctl --user start gandalf-litellm-bridge.service
+        systemctl --user restart spark-litellm-bridge.service 2>/dev/null || \
+            systemctl --user start spark-litellm-bridge.service
     else
-        ensure_bridge_unit gandalf-litellm-bridge.service "172.19.0.1:4000 → LiteLLM" >/dev/null || true
+        ensure_bridge_unit spark-litellm-bridge.service "172.19.0.1:4000 → LiteLLM" >/dev/null || true
         info "LiteLLM bridge active"
     fi
 }

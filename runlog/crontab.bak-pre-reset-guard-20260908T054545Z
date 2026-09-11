@@ -1,0 +1,66 @@
+TZ=America/Chicago
+#
+# AGENT HELPER ACTIONS
+#
+
+# Drain the Slack post queue every 5 min
+*/5 * * * * /home/catlett/code/spark-ai-agents/shared/scripts/cron/send-slack.sh >> /home/catlett/code/spark-ai-agents/shared/logs/slack-posts.log 2>&1
+
+# Send approved outbox emails every 30 min
+*/30 * * * * /home/catlett/code/spark-ai-agents/shared/scripts/cron/send-email.sh >> /home/catlett/code/spark-ai-agents/shared/logs/email-send.log 2>&1
+
+#
+# SCHEDULING SCAFFOLDING
+#
+# Agent heartbeat: process TODO.md tasks every 5 min
+*/5 * * * * /home/catlett/code/spark-ai-agents/shared/scripts/cron/check-todos.sh >> /home/catlett/code/spark-ai-agents/shared/logs/todos-cron.log 2>&1
+
+# Medic Health Checker
+0    1 * * *  /home/catlett/code/spark-ai-agents/shared/scripts/tests/test-all.sh > /home/catlett/code/spark-ai-agents/shared/reports/smoke-tests-latest.txt 2>&1
+
+# 
+# REGULAR NOTIFICATIONS FOR TPC26 EVENT
+#
+# The following are the same script, run daily, sending email to track leaders on Mon/Wed/Fri 
+# and only doing the slack update (run ) with --no-email on Sun, Tue, Thu, Sat. 
+#
+# HIBERNATED 2026-06-01 — restore for TPC27 (see chattpc26/HIBERNATION.md)
+
+#  MON/WED/FRI: sync sheets + Slack post + send submission emails on Mon/Wed/Fri at 4am
+# HIBERNATED 2026-06-01 — restore for TPC27 (see chattpc26/HIBERNATION.md)
+# 0 4 * * 1,4 /home/catlett/code/spark-ai-agents/chattpc26/scripts/run-compose-email.sh >> /home/catlett/code/spark-ai-agents/shared/logs/notify.log 2>&1
+#  SUN/TUE/THU/SAT: sync sheets + Slack post, no email
+
+# Weekly submission ramp comparison chart (TPC26 vs TPC25), Sunday 23:00 local
+# HIBERNATED 2026-06-01 — restore for TPC27 (see chattpc26/HIBERNATION.md)
+# 0 23 * * * /home/catlett/code/spark-ai-agents/chattpc26/scripts/run-plot-submission-ramp.sh >> /home/catlett/code/spark-ai-agents/shared/logs/submission-ramp.log 2>&1
+
+# Daily registration ramp chart (TPC24/TPC25/TPC26 comparison), 08:00 Chicago = 13:00 UTC (CDT) / 14:00 UTC (CST)
+# HIBERNATED 2026-06-01 — restore for TPC27 (see chattpc26/HIBERNATION.md)
+# 0 8 * * * /home/catlett/code/spark-ai-agents/chattpc26/scripts/run-registration-ramp.sh >> /home/catlett/code/spark-ai-agents/shared/logs/registration-ramp.log 2>&1
+
+# Daily registration count sync to ramp sheet, 01:00 Central
+# 0 1 * * * /home/catlett/code/spark-ai-agents/chattpc26/scripts/run-update-reg-ramp.sh >> /home/catlett/code/spark-ai-agents/shared/logs/reg-ramp-update.log 2>&1
+# Daily status sheet update, 06:00 Central
+# HIBERNATED 2026-06-01 — restore for TPC27 (see chattpc26/HIBERNATION.md)
+# 0 6 * * * python3 /home/catlett/code/spark-ai-agents/chattpc26/scripts/update-daily-status.py >> /home/catlett/code/spark-ai-agents/shared/logs/daily-status.log 2>&1
+
+
+# Models health check
+*/15 * * * * /home/catlett/code/spark-ai-agents/shared/scripts/cron/monitor-gateway-models.sh >> /home/catlett/code/spark-ai-agents/shared/logs/gateway-health.log 2>&1
+
+# Stack health check every 6 hours (deep idempotent probe + targeted restart)
+30 3,9,15,21 * * * /home/catlett/code/spark-ai-agents/shared/scripts/cron/run-stack-health.sh >> /home/catlett/code/spark-ai-agents/shared/logs/stack-health.log 2>&1
+
+# Concert watch — Ticketmaster Discovery API, Mon & Thu 09:15 CT
+15 9 * * 1,4 python3 /home/catlett/code/spark-ai-agents/cecat/scripts/check-concerts.py >> /home/catlett/code/spark-ai-agents/shared/logs/concert-watch.log 2>&1
+
+# Email pre-check 
+*/10 * * * * /home/catlett/code/spark-ai-agents/shared/scripts/lib/email-precheck.sh >> /home/catlett/code/spark-ai-agents/shared/logs/email-precheck-cron.log 2>&1
+
+# === Gandalf outbox (Spark-Hermes) ===
+# Processor: posts pending drafts to operator's Slack DM, watches reactions, moves on approve/reject.
+# Sender:    sends approved drafts via gmail, moves to sent/ on success.
+# Logs:      ~/code/Spark-Hermes/runlog/outbox-cron.log
+*/5 * * * * /home/catlett/code/Spark-Hermes/ops/outbox-processor.sh >> /home/catlett/code/Spark-Hermes/runlog/outbox-cron.log 2>&1
+
