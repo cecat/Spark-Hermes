@@ -90,16 +90,48 @@ litellm_healthy() {
 # at boot. While it's down every `openshell` call fails with "transport error /
 # Connection refused", which is indistinguishable from "sandbox doesn't exist"
 # unless you check for it explicitly.
+# Test THIS port, not "whatever gateway is currently active".
+#
+# This was `openshell sandbox list`, which queries the ACTIVE gateway — and
+# cecat/luoji work flips the global default to nemoclaw-8090/-8091 as a side
+# effect (C-12). Measured 2026-09-14: with OPENSHELL_GATEWAY=nemoclaw-8090 that
+# command exits 0 while :8080 is dead, so this function returned "up" for a
+# daemon that had never started. The 2026-09-14 reboot test passed Layer 3 on
+# that false positive and Gandalf crashlooped against a missing policy server.
 openshell_daemon_up() {
-    openshell sandbox list >/dev/null 2>&1
+    ss -ltn 2>/dev/null | grep -q '127\.0\.0\.1:8080 '
 }
 
 # `nemohermes gandalf status` starts the daemon as a side effect.
 ensure_openshell_daemon() {
     openshell_daemon_up && return 0
     warn "OpenShell gateway daemon not responding — starting it"
-    nemohermes gandalf status >/dev/null 2>&1 || true
-    wait_for "OpenShell daemon warming up" 30 openshell_daemon_up
+
+    # Capture the starter's output and exit code — this was
+    # `>/dev/null 2>&1 || true`, which discarded the evidence for the one
+    # command Hermes cannot start without. See the same fix and the 2026-09-14
+    # reboot-test story in DGX-Spark/ops/start-all.sh.
+    # Select Gandalf's plane first — the active gateway selector is global and
+    # persistent, and cecat/luoji work flips it to nemoclaw-8090/-8091 (C-12).
+    # `nemohermes gandalf status` refuses outright when it is pointed elsewhere.
+    # See the fuller note in DGX-Spark/ops/start-all.sh (reboot test #3).
+    openshell gateway select nemoclaw >/dev/null 2>&1 \
+        || warn "could not select gateway 'nemoclaw' — the starter will likely refuse"
+
+    local nh_log="${TMPDIR:-/tmp}/hermes-start-nemohermes-$$.log"
+    local nh_rc
+    note "invoking: $(command -v nemohermes 2>/dev/null || echo '<not on PATH>') gandalf status"
+    nemohermes gandalf status >"$nh_log" 2>&1 </dev/null
+    nh_rc=$?
+    [ "$nh_rc" -ne 0 ] && warn "nemohermes gandalf status exited $nh_rc:" && sed 's/^/      /' "$nh_log" | tail -15
+
+    if wait_for "OpenShell daemon warming up" 30 openshell_daemon_up; then
+        rm -f "$nh_log"
+        return 0
+    fi
+    warn "daemon did not open :8080 within 30s. Starter transcript: $nh_log"
+    [ "$nh_rc" -eq 0 ] && sed 's/^/      /' "$nh_log" | tail -15
+    return 1
 }
 
 # Sandbox phase, or empty if the daemon is unreachable. Callers must distinguish
@@ -388,8 +420,16 @@ ensure_hermes_gateway() {
     # run` is still alive inside it, but the host-side port forward points at a
     # pre-reboot PID and shows as "dead". Re-establishing the forward is far
     # cheaper (and less risky) than a full recover, so try that first.
-    if openshell forward list 2>/dev/null | grep -q '8642.*dead'; then
-        warn "port forward 8642 is dead — restarting it"
+    # Two distinct states, both fixed the same cheap way:
+    #   "8642 ... dead"  — the entry survives but names a pre-reboot PID
+    #   entry ABSENT     — a reboot cleared the forward table entirely
+    # This used to test only for "dead". After the 2026-09-14 reboot the entry
+    # was absent, so it fell through to `nemohermes recover` (slower, restarts
+    # more) when a forward restart was all that was needed. `grep -q 8642`
+    # covers both by asking the inverse: is there NO usable entry for 8642.
+    if ! openshell forward list 2>/dev/null | grep -q '8642' \
+       || openshell forward list 2>/dev/null | grep -q '8642.*dead'; then
+        warn "port forward 8642 is missing or dead — restarting it"
         openshell forward stop 8642 gandalf >/dev/null 2>&1 || true
         openshell forward start -d 8642 gandalf >/dev/null 2>&1 || true
         if wait_for "port forward reconnecting" 30 hermes_gateway_healthy; then

@@ -22,6 +22,19 @@ export PATH="$OPENSHELL_101_BIN:$HOME/.nvm/versions/node/v22.22.3/bin:$PATH"
 export NEMOCLAW_GATEWAY_PORT=8091
 export OPENSHELL_GATEWAY=nemoclaw-8091
 
+# Pins the OpenShell docker-driver gateway STATE DIR to this plane's own
+# directory. Without it, `resolveDockerDriverGatewayStateDir`
+# (onboard/host-gateway-process.ts:122) falls back to the NON-port-scoped
+# ~/.local/state/nemoclaw/openshell-docker-gateway — which is GANDALF's.
+#
+# This is not theoretical, and this plane is where it happened. On
+# 2026-09-01T03:37:37Z `nemoclaw luoji policy-list` ignored OPENSHELL_GATEWAY
+# (announcing the override in its own output), started a 0.0.101 gateway against
+# Gandalf's 0.0.44 database, and applied migration 6 to it. His daemon then
+# refused that DB and he was dead from the next restart — found nine days later.
+# See Claude-Code-Supervisor/runbook/FINDING-gandalf-db-contamination.md.
+export NEMOCLAW_OPENSHELL_GATEWAY_STATE_DIR="$HOME/.local/state/nemoclaw/openshell-docker-gateway-8091"
+
 # Deliberately NOT setting OPENSHELL_GATEWAY_ENDPOINT — `nemoclaw onboard`
 # hard-refuses when it is set (openshell-gateway-endpoint-guard.js).
 
