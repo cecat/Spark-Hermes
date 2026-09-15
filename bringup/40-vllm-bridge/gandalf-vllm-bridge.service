@@ -6,7 +6,7 @@ StartLimitIntervalSec=0
 
 [Service]
 Type=simple
-ExecStart=/home/catlett/code/Spark-Hermes/ops/vllm-bridge.sh 127.0.0.1 8000 vllm-qwen3-coder-next 8000
+ExecStart=/home/catlett/code/spark-ops/ops/bridges/vllm-bridge.sh 127.0.0.1 8000 vllm-qwen3-coder-next 8000
 Restart=always
 RestartSec=5
 
