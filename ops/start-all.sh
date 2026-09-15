@@ -23,11 +23,13 @@ set -euo pipefail
 
 # ── Colors / helpers ────────────────────────────────────────────────────────
 
-RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'; CYAN='\033[0;36m'; NC='\033[0m'
-info()  { printf "${GREEN}[✓]${NC} %s\n" "$*"; }
-warn()  { printf "${YELLOW}[…]${NC} %s\n" "$*"; }
+# Shared helpers. Used here: colours, info, warn, note, wait_for,
+# openshell_daemon_up. Sourced by absolute path.
+source "$HOME/code/spark-ops/ops/lib/_lib.sh"
+
+# NOT shared: this fail() writes to stderr and EXITS 1. spark-ai's two copies
+# differ (one exits, one does not), so the library carries none of them.
 fail()  { printf "${RED}[✗]${NC} %s\n" "$*" >&2; exit 1; }
-note()  { printf "${CYAN}[i]${NC} %s\n" "$*"; }
 
 # Distinct from the generic failure exit 1 so callers can tell "argo-shim is
 # down, a human must run ~/start-all.sh" apart from a real stack fault.
@@ -46,20 +48,6 @@ ARGO_PORT="${ARGO_PORT:-44497}"
 
 # Tracking flag so a lower-layer restart can cascade upward
 LITELLM_RESTARTED=false
-
-wait_for() {
-    # wait_for "<description>" <max_seconds> <command...>
-    local desc=$1 max=$2; shift 2
-    local elapsed=0
-    while [ "$elapsed" -lt "$max" ]; do
-        if "$@" >/dev/null 2>&1; then return 0; fi
-        sleep 2
-        elapsed=$((elapsed + 2))
-        printf "\r${YELLOW}[…]${NC} %s — %ds/%ds..." "$desc" "$elapsed" "$max"
-    done
-    echo ""
-    return 1
-}
 
 # ── Deep health check primitives ────────────────────────────────────────────
 
@@ -86,21 +74,9 @@ litellm_healthy() {
     [ "$code" = "200" ]
 }
 
-# The OpenShell docker-driver gateway daemon (127.0.0.1:8080) does NOT autostart
-# at boot. While it's down every `openshell` call fails with "transport error /
-# Connection refused", which is indistinguishable from "sandbox doesn't exist"
-# unless you check for it explicitly.
-# Test THIS port, not "whatever gateway is currently active".
-#
-# This was `openshell sandbox list`, which queries the ACTIVE gateway — and
-# cecat/luoji work flips the global default to nemoclaw-8090/-8091 as a side
-# effect (C-12). Measured 2026-09-14: with OPENSHELL_GATEWAY=nemoclaw-8090 that
-# command exits 0 while :8080 is dead, so this function returned "up" for a
-# daemon that had never started. The 2026-09-14 reboot test passed Layer 3 on
-# that false positive and Gandalf crashlooped against a missing policy server.
-openshell_daemon_up() {
-    ss -ltn 2>/dev/null | grep -q '127\.0\.0\.1:8080 '
-}
+# openshell_daemon_up() comes from spark-ops/ops/lib/_lib.sh. It used to be
+# defined here AND in DGX-Spark/ops/start-all.sh — the 2026-09-14
+# two-copies-one-bug incident. The full rationale lives with the function.
 
 # `nemohermes gandalf status` starts the daemon as a side effect.
 ensure_openshell_daemon() {

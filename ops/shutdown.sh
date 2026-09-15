@@ -87,12 +87,9 @@ export PATH="$HOME/.local/bin:$PATH"
 export XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
 export DBUS_SESSION_BUS_ADDRESS="${DBUS_SESSION_BUS_ADDRESS:-unix:path=$XDG_RUNTIME_DIR/bus}"
 
-RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'; CYAN='\033[0;36m'; BOLD='\033[1m'; NC='\033[0m'
-info() { printf "${GREEN}[✓]${NC} %s\n" "$*"; }
-warn() { printf "${YELLOW}[…]${NC} %s\n" "$*"; }
-bad()  { printf "${RED}[✗]${NC} %s\n" "$*"; }
-note() { printf "${CYAN}[i]${NC} %s\n" "$*"; }
-hdr()  { printf "\n${BOLD}=== %s ===${NC}\n" "$*"; }
+# Shared helpers. Used here: colours, info, warn, bad, note, hdr, stop_unit.
+# Sourced by absolute path.
+source "$HOME/code/spark-ops/ops/lib/_lib.sh"
 
 CHECK_ONLY=false
 for arg in "$@"; do
@@ -102,7 +99,9 @@ for arg in "$@"; do
     esac
 done
 
-PROBLEMS=()
+# Renamed from PROBLEMS 2026-09-15 to match the library stop_unit's contract
+# (it appends to FAILED). Purely local — nothing outside this file read it.
+FAILED=()
 
 # How long phase 2 waits for the FALDA tap to catch up. The tap polls on a 20s
 # timer (TAP_POLL), so anything under ~25s can expire before it looks even once.
@@ -112,32 +111,9 @@ TAP_STATE="${TAP_STATE:-$HOME/.falda/tap_state_gandalf.json}"
 
 CONTAINER=$(docker ps --format '{{.Names}}' 2>/dev/null | grep '^openshell-gandalf-' | head -1)
 
-# stop_unit <unit> <description>
-# Reports and continues on failure — one stuck unit must not strand the rest.
-#
-# `is-active` alone is not enough: a crash-looping unit sits in
-# ActiveState=activating / SubState=auto-restart, for which is-active exits 3
-# and prints "activating". Treating that as "already stopped" leaves it to be
-# restarted by systemd seconds later, mid-shutdown.
-stop_unit() {
-    local unit=$1 desc=$2 state
-    state=$(systemctl --user is-active "$unit" 2>/dev/null || true)
-    if [ "$state" != "active" ] && [ "$state" != "activating" ] && [ "$state" != "reloading" ]; then
-        info "$unit already stopped (${state:-unknown})"
-        return 0
-    fi
-    if $CHECK_ONLY; then
-        note "would stop $unit ($desc)"
-        return 0
-    fi
-    warn "stopping $unit ($desc)"
-    if systemctl --user stop "$unit" 2>/dev/null; then
-        info "$unit stopped"
-    else
-        bad "failed to stop $unit"
-        PROBLEMS+=("$unit")
-    fi
-}
+# stop_unit() comes from spark-ops/ops/lib/_lib.sh. Its contract: CHECK_ONLY
+# and the FAILED array must both be defined before the first call. They are,
+# above.
 
 # ════════════════════════════════════════════════════════════════════════════
 #  PHASE 0 — pre-flight: will this host actually come back up?
@@ -396,7 +372,7 @@ phase_sandbox() {
         else
             warn "gateway still running after ${waited}s — docker stop's SIGKILL will end it"
             note "state.db is WAL-mode SQLite, so this is a crash-consistent stop, not corruption."
-            PROBLEMS+=("hermes gateway did not stop cleanly")
+            FAILED+=("hermes gateway did not stop cleanly")
         fi
     else
         info "Hermes gateway already stopped"
@@ -410,7 +386,7 @@ phase_sandbox() {
         info "sandbox container stopped"
     else
         bad "docker stop failed for $CONTAINER"
-        PROBLEMS+=("sandbox container")
+        FAILED+=("sandbox container")
     fi
 }
 
@@ -544,7 +520,7 @@ phase_openshell() {
     if kill -0 "$pid" 2>/dev/null; then
         warn "daemon still running after ${waited}s — leaving it for the reboot"
         note "It handles SIGTERM, so this is unexpected: check $OPENSHELL_STATE/openshell-gateway.log"
-        PROBLEMS+=("openshell daemon did not exit")
+        FAILED+=("openshell daemon did not exit")
     else
         info "OpenShell daemon stopped (${waited}s)"
     fi
@@ -572,10 +548,10 @@ if $CHECK_ONLY; then
     exit 0
 fi
 
-if [ ${#PROBLEMS[@]} -eq 0 ]; then
+if [ ${#FAILED[@]} -eq 0 ]; then
     info "Gandalf layer is down cleanly"
 else
-    bad "${#PROBLEMS[@]} problem(s): ${PROBLEMS[*]}"
+    bad "${#FAILED[@]} problem(s): ${FAILED[*]}"
 fi
 
 # Only nag about the rest of the host when run standalone. Under ~/shutdown.sh
@@ -591,4 +567,4 @@ if [ -z "${SHUTDOWN_ORCHESTRATED:-}" ]; then
     note "Bring everything back after reboot:   ~/start-all.sh"
 fi
 
-[ ${#PROBLEMS[@]} -eq 0 ] || exit 1
+[ ${#FAILED[@]} -eq 0 ] || exit 1
