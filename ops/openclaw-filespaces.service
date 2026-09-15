@@ -40,7 +40,7 @@
 # (5 starts / 10s) would give up permanently after ~5 minutes of a plane being
 # down. A restore unit that stops trying is the silent outage.
 Description=Restore OpenClaw agent filespaces (sshfs mounts + in-sandbox symlinks)
-Documentation=file:%h/code/Spark-Hermes/ops/mount-agent-filespaces.sh
+Documentation=file:%h/code/spark-ops/ops/planes/mount-agent-filespaces.sh
 # NOTE (verified 2026-09-10): this line is INERT. `network-online.target` does
 # not exist in the *user* manager — `systemctl --user show network-online.target
 # -p LoadState` returns not-found — so it orders nothing. Kept only because it
@@ -79,10 +79,10 @@ while [ "$$i" -lt 180 ]; do \
   if [ "$$c" -eq 4 ]; then exit 0; fi; \
   i=$$(( i + 1 )); sleep 1; \
 done; \
-echo "preconditions not met after 180s: need both sandboxes running and both planes listening on :8090 and :8091 (try: bash %h/code/Spark-Hermes/ops/agent-planes.sh start)" >&2; \
+echo "preconditions not met after 180s: need both sandboxes running and both planes listening on :8090 and :8091 (try: bash %h/code/spark-ops/ops/planes/agent-planes.sh start)" >&2; \
 exit 1'
 
-ExecStart=/bin/bash %h/code/Spark-Hermes/ops/mount-agent-filespaces.sh --mount
+ExecStart=/bin/bash %h/code/spark-ops/ops/planes/mount-agent-filespaces.sh --mount
 
 # Prove it, or fail loudly. mount-agent-filespaces.sh exits 0 in cases where a
 # mount did not actually land (it only sets RC=1 when a sandbox is missing), so

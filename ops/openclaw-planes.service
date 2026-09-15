@@ -41,7 +41,7 @@
 # must still run and keep retrying. Its retry loop is the backstop that has to
 # survive this unit being broken or removed.
 Description=Start OpenClaw agent control planes (cecat :8090, luoji :8091)
-Documentation=file:%h/code/Spark-Hermes/ops/agent-planes.sh
+Documentation=file:%h/code/spark-ops/ops/planes/agent-planes.sh
 Before=openclaw-filespaces.service
 StartLimitIntervalSec=0
 
@@ -85,7 +85,7 @@ done; \
 echo "docker daemon not answering after 120s" >&2; \
 exit 1'
 
-ExecStart=/bin/bash %h/code/Spark-Hermes/ops/agent-planes.sh start
+ExecStart=/bin/bash %h/code/spark-ops/ops/planes/agent-planes.sh start
 
 # ── PROVE IT, OR FAIL LOUDLY ────────────────────────────────────────────────
 #
@@ -116,8 +116,8 @@ TimeoutStartSec=600
 # default 5-starts-in-10s would give up permanently after ~5 minutes. A restore
 # unit that stops trying is the silent outage this project keeps producing.
 
-StandardOutput=append:%h/code/Spark-Hermes/runlog/openclaw-planes.log
-StandardError=append:%h/code/Spark-Hermes/runlog/openclaw-planes.log
+StandardOutput=append:%h/.openclaw-ops/openclaw-planes.log
+StandardError=append:%h/.openclaw-ops/openclaw-planes.log
 
 [Install]
 WantedBy=default.target
