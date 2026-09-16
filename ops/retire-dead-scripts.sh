@@ -17,7 +17,7 @@
 set -u
 
 MODE="${1:---dry-run}"
-BASE="$HOME/code/spark-ai-agents"
+BASE="$HOME/code/Spark-OpenClaw"
 ATTIC="$BASE/.attic/2026-09-03-t2-retirement"
 
 case "$MODE" in

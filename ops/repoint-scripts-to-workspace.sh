@@ -51,7 +51,7 @@ case "$MODE" in
   *) echo "Usage: $0 [--check|--commit]" >&2; exit 1 ;;
 esac
 
-BASE="$HOME/code/spark-ai-agents"
+BASE="$HOME/code/Spark-OpenClaw"
 RC=0
 
 echo "════════════════════════════════════════════"

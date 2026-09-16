@@ -44,7 +44,7 @@
 # `access_token` from it on demand (gmail-api.py:_refresh) and write it back
 # inside the container; losing that on rebuild costs one refresh round-trip, not
 # an OAuth re-auth. If the refresh token itself is ever revoked, re-run the host
-# browser dance (spark-ai-agents/cecat/scripts/reauth.py) and then this script.
+# browser dance (Spark-OpenClaw/cecat/scripts/reauth.py) and then this script.
 #
 # ── Egress is a SEPARATE prerequisite, not done here ─────────────────────────
 #
@@ -96,7 +96,7 @@ CREDS_DEST2="$SBX_HOME/.config/gsuite-mcp/credentials.json"
 
 OPENSHELL_101="$HOME/gandalf-bringup/openshell-0.0.101/bin/openshell"
 
-[ -f "$TOKEN_HOST" ] || { echo "missing $TOKEN_HOST — re-auth first: python3 ~/code/spark-ai-agents/cecat/scripts/reauth.py" >&2; exit 1; }
+[ -f "$TOKEN_HOST" ] || { echo "missing $TOKEN_HOST — re-auth first: python3 ~/code/Spark-OpenClaw/cecat/scripts/reauth.py" >&2; exit 1; }
 [ -f "$CREDS_HOST" ] || { echo "missing $CREDS_HOST — download the OAuth desktop-app client from Google Cloud Console" >&2; exit 1; }
 [ -x "$OPENSHELL_101" ] || { echo "missing the 0.0.101 openshell binary: $OPENSHELL_101" >&2; exit 1; }
 

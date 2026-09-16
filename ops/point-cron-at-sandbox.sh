@@ -54,7 +54,7 @@ case "$MODE" in
   *) echo "Usage: $0 [--check|--commit|--revert]" >&2; exit 1 ;;
 esac
 
-SCRIPT="$HOME/code/spark-ai-agents/shared/scripts/cron/check-todos.sh"
+SCRIPT="$HOME/code/Spark-OpenClaw/shared/scripts/cron/check-todos.sh"
 BACKUP="${SCRIPT}.pre-sandbox-paths"
 
 # The sandbox copies, reachable from the host only while the sshfs mount is up.
@@ -156,7 +156,7 @@ cat <<'EOM'
      THIS IS THE NEXT SILENT FAILURE unless a systemd unit is added.
 
   Verify at the next 5-minute cron tick:
-    tail -5 ~/code/spark-ai-agents/shared/logs/todos-cron.log
+    tail -5 ~/code/Spark-OpenClaw/shared/logs/todos-cron.log
     docker exec -u sandbox $(docker ps --format '{{.Names}}' \
       | grep '^openshell-default--cecat-') grep -c READY /workspace/TODO.md
 EOM

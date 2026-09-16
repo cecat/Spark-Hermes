@@ -42,7 +42,7 @@ set -u
 CHECK=false
 [ "${1:-}" = "--check" ] && CHECK=true
 
-STATE="$HOME/code/spark-ai-agents/shared/state"
+STATE="$HOME/code/Spark-OpenClaw/shared/state"
 DEST_DIR=/sandbox/shared/state
 
 echo "════════════════════════════════════════════"
@@ -106,7 +106,7 @@ cat <<'EOM'
 
   Until then, run this by hand after any pause/unpause:
 
-      bash ~/code/spark-ai-agents/shared/scripts/ops/pause.sh global --reason "..."
+      bash ~/code/Spark-OpenClaw/shared/scripts/ops/pause.sh global --reason "..."
       bash ~/code/Spark-Hermes/ops/push-pause-sentinels.sh
 
   A cron sync every 5 min is the other option: slower to take effect, but it

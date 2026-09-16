@@ -45,7 +45,7 @@
 set -euo pipefail
 . "$(dirname "$0")/_lib.sh"
 
-REPO_AGENTS="$HOME/code/spark-ai-agents"
+REPO_AGENTS="$HOME/code/Spark-OpenClaw"
 ARCHIVE_ROOT="$HOME/.agent-memory-backups"
 SANDBOX_WS="/sandbox/.openclaw/workspace"
 

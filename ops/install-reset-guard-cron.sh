@@ -36,7 +36,7 @@ case "$MODE" in
 esac
 
 GUARD="$HOME/code/Spark-Hermes/ops/reset-sessions-openshell.sh"
-LOG="$HOME/code/spark-ai-agents/shared/logs/sessions-reset-cron.log"
+LOG="$HOME/code/Spark-OpenClaw/shared/logs/sessions-reset-cron.log"
 BACKUP_DIR="$HOME/code/Spark-Hermes/runlog"
 MARKER="reset-sessions-openshell.sh"
 

@@ -33,7 +33,7 @@ real picture:
            (only the openshell-sandbox binary), so docker exec is the only way in.
 
   cecat    HOST READ of
-           ~/code/spark-ai-agents/cecat/memory/heartbeat-state.json
+           ~/code/Spark-OpenClaw/cecat/memory/heartbeat-state.json
            → field `lastTriageTimestamp`.
            Her OpenClaw sandbox bind-mounts /workspace from that host directory
            (docker inspect openclaw-sbx-agent-cecat-*), so a host read IS an
@@ -53,7 +53,7 @@ real picture:
            UNMONITORABLE today and this script says so, rather than pointing at
            a file that cannot answer the question.
 
-  Rejected as a source: ~/code/spark-ai-agents/shared/logs/heartbeat.log (dead
+  Rejected as a source: ~/code/Spark-OpenClaw/shared/logs/heartbeat.log (dead
   since 2026-05-28), and file mtime for any agent — a file rewritten every cycle
   with identical failing content has a fresh mtime and a dead agent.
 
@@ -65,7 +65,7 @@ three-line deterministic stamp gandalf already has. The contract:
     path   luoji: <workspace>/memory/heartbeat-last.json
            cecat: <workspace>/memory/heartbeat-last.json
            (<workspace> is /workspace inside the sandbox, which is
-            ~/code/spark-ai-agents/<agent>/ on the host — bind-mounted rw)
+            ~/code/Spark-OpenClaw/<agent>/ on the host — bind-mounted rw)
     field  checked_at
     format "%Y-%m-%dT%H:%M:%SZ", UTC, zero-padded, literal trailing Z
     body   {"checked_at": "...", "ok": <bool>, "failures": [<str>, ...]}
@@ -162,12 +162,12 @@ AGENTS: dict[str, dict] = {
         "sources": [
             # Preferred once W10 lands the contract in the module docstring.
             {"kind": "host",
-             "path": Path.home() / "code/spark-ai-agents/cecat/memory/heartbeat-last.json"},
+             "path": Path.home() / "code/Spark-OpenClaw/cecat/memory/heartbeat-last.json"},
             # Live today. This host path IS the sandbox's /workspace/memory —
             # openclaw-sbx-agent-cecat-* bind-mounts it rw, so this is
             # in-sandbox evidence read with a host clock, not a stale copy.
             {"kind": "host",
-             "path": Path.home() / "code/spark-ai-agents/cecat/memory/heartbeat-state.json"},
+             "path": Path.home() / "code/Spark-OpenClaw/cecat/memory/heartbeat-state.json"},
         ],
     },
     "luoji": {
@@ -183,7 +183,7 @@ AGENTS: dict[str, dict] = {
         "sources": [
             # Where W10's stamp will land. Absent today.
             {"kind": "host",
-             "path": Path.home() / "code/spark-ai-agents/luoji/memory/heartbeat-last.json"},
+             "path": Path.home() / "code/Spark-OpenClaw/luoji/memory/heartbeat-last.json"},
             {"kind": "no_source",
              "reason": "no heartbeat stamp is being written for luoji. His "
                        "memory/heartbeat-state.json holds one epoch "
@@ -407,7 +407,7 @@ def send_telegram(text: str) -> str:
 def send_slack(text: str) -> str:
     """Drop a pending item in the existing outbox that send-slack.sh drains
     every 5 min. Reuses that path rather than adding a second Slack sender."""
-    outbox = Path.home() / "code/spark-ai-agents/shared/slack/outbox"
+    outbox = Path.home() / "code/Spark-OpenClaw/shared/slack/outbox"
     channel = os.environ.get("LIVENESS_SLACK_CHANNEL") or cfg_value("slack.home_channel_id")
     if not channel:
         return "slack: no channel (set LIVENESS_SLACK_CHANNEL or slack.home_channel_id)"

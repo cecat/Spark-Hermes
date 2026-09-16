@@ -59,8 +59,8 @@ esac
 
 MNT="$HOME/.nemoclaw/gateways/$PORT/mounts/$AGENT"
 SESSIONS="$MNT/.openclaw/agents/main/sessions"
-ARCHIVE_DIR="$HOME/code/spark-ai-agents/shared/session-archives/$(date -u +%Y-%m-%d)"
-LOG_FILE="$HOME/code/spark-ai-agents/shared/logs/sessions-reset.log"
+ARCHIVE_DIR="$HOME/code/Spark-OpenClaw/shared/session-archives/$(date -u +%Y-%m-%d)"
+LOG_FILE="$HOME/code/Spark-OpenClaw/shared/logs/sessions-reset.log"
 NOW="$(date -u +%Y-%m-%dT%H-%M-%SZ)"
 
 if ! mountpoint -q "$MNT" 2>/dev/null && [ ! -d "$SESSIONS" ]; then

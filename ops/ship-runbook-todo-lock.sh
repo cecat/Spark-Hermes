@@ -35,7 +35,7 @@
 # refuses to ship the runbook to an agent whose lib is missing.
 #
 # Source of truth is the host tree, verified byte-identical to cecat's working
-# copy: ~/code/spark-ai-agents/shared/scripts/lib/{filelock.sh,with-file-lock.sh}
+# copy: ~/code/Spark-OpenClaw/shared/scripts/lib/{filelock.sh,with-file-lock.sh}
 #
 # ── C-0b ────────────────────────────────────────────────────────────────────
 #
@@ -51,7 +51,7 @@ case "$MODE" in
     *) echo "Usage: $0 [--check|--commit|--revert]" >&2; exit 1 ;;
 esac
 
-REPO="$HOME/code/spark-ai-agents"
+REPO="$HOME/code/Spark-OpenClaw"
 SRC_LIB="$REPO/shared/scripts/lib"
 STAMP="$(date -u +%Y%m%dT%H%M%SZ)"
 RC=0

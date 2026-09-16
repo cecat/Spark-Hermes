@@ -42,9 +42,9 @@ case "$MODE" in
   *) echo "Usage: $0 [--check|--commit|--revert]" >&2; exit 1 ;;
 esac
 
-SCRIPT="$HOME/code/spark-ai-agents/shared/scripts/cron/check-todos.sh"
+SCRIPT="$HOME/code/Spark-OpenClaw/shared/scripts/cron/check-todos.sh"
 BACKUP="${SCRIPT}.pre-lock"
-LIB="$HOME/code/spark-ai-agents/shared/scripts/lib/filelock.sh"
+LIB="$HOME/code/Spark-OpenClaw/shared/scripts/lib/filelock.sh"
 
 echo "════════════════════════════════════════════"
 echo "  Add file locking to check-todos.sh"
@@ -82,19 +82,19 @@ s = open(p).read()
 
 # 1. Source the lock library, right after the audit lib it already sources.
 if "filelock.sh" not in s:
-    anchor = 'source "$HOME/code/spark-ai-agents/shared/scripts/lib/audit.sh"'
+    anchor = 'source "$HOME/code/Spark-OpenClaw/shared/scripts/lib/audit.sh"'
     if anchor in s:
         s = s.replace(anchor, anchor +
             '\n# Shared-file lock. TODO.md/CALENDAR.md are written by BOTH this script\n'
             '# and the agent; without coordination ~87% of concurrent updates are lost.\n'
-            'source "$HOME/code/spark-ai-agents/shared/scripts/lib/filelock.sh"', 1)
+            'source "$HOME/code/Spark-OpenClaw/shared/scripts/lib/filelock.sh"', 1)
     else:
         # Fall back to inserting after the shebang block rather than failing.
         lines = s.split("\n")
         for i, l in enumerate(lines):
             if l.startswith("set -"):
                 lines.insert(i + 1,
-                    'source "$HOME/code/spark-ai-agents/shared/scripts/lib/filelock.sh"')
+                    'source "$HOME/code/Spark-OpenClaw/shared/scripts/lib/filelock.sh"')
                 break
         s = "\n".join(lines)
 
@@ -142,7 +142,7 @@ cat <<'EOM'
 ════════════════════════════════════════════
   VERIFY AT THE NEXT 5-MINUTE TICK
 ════════════════════════════════════════════
-  tail -5 ~/code/spark-ai-agents/shared/logs/todos-cron.log
+  tail -5 ~/code/Spark-OpenClaw/shared/logs/todos-cron.log
 
   A "LOCK TIMEOUT" line means the agent held the lock longer than 30s — worth
   investigating, but the pass is skipped safely rather than clobbering.
