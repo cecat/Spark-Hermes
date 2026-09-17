@@ -1,8 +1,13 @@
 #!/usr/bin/env bash
-# push-pause-sentinels.sh — make the kill switch reach the OpenShell agents.
+# push-pause-sentinels.sh — the OPENCLAW HALF of the three-agent kill switch.
 #
 #   bash ops/push-pause-sentinels.sh            # sync current pause state
 #   bash ops/push-pause-sentinels.sh --check    # report only, change nothing
+#
+# SCOPE: cecat and luoji only. Gandalf is paused by a different mechanism on a
+# different plane (native `hermes cron pause`, via ops/push-pause-gandalf.sh).
+# This script is one of two halves, not the whole switch — see "HOW THIS GETS
+# CALLED" at the bottom.
 #
 # THE BUG THIS FIXES (found 2026-09-03)
 #
@@ -100,20 +105,35 @@ cat <<'EOM'
 ════════════════════════════════════════════
   HOW THIS GETS CALLED
 ════════════════════════════════════════════
-  pause.sh / unpause.sh do NOT call this yet — wiring that up is the second
-  half of the fix and needs Charlie's sign-off, because it makes pause.sh
-  depend on docker being healthy.
+  You normally do NOT run this directly. It is one of two plane-specific
+  halves, both driven by the landlord propagator in the neutral ops repo:
 
-  Until then, run this by hand after any pause/unpause:
+      spark-ops/ops/pause-propagate.sh      <- the entry point
+        |-- Spark-Hermes/ops/push-pause-sentinels.sh   (this file: cecat, luoji)
+        `-- Spark-Hermes/ops/push-pause-gandalf.sh     (gandalf, via hermes cron)
+
+  pause.sh / unpause.sh call the propagator themselves, so the normal operator
+  command reaches all three agents in one step:
 
       bash ~/code/Spark-OpenClaw/shared/scripts/ops/pause.sh global --reason "..."
+
+  That does mean pause.sh now depends on docker being healthy. The dependency
+  degrades rather than breaks: the host sentinel is written regardless, and if
+  propagation fails pause.sh says so loudly and exits non-zero.
+
+  BY HAND — still supported, as a fallback when the propagator or the other
+  plane is unavailable, and after any event that drops the sandbox sentinels
+  (rebuild, reboot; see the TRADEOFF note above):
+
       bash ~/code/Spark-Hermes/ops/push-pause-sentinels.sh
 
-  A cron sync every 5 min is the other option: slower to take effect, but it
-  cannot be forgotten, and it fails safe if docker is briefly unavailable.
+  To answer "did the pause actually take?" across all three agents:
 
-  NOTE: the HOST half of the kill switch already works and is unaffected by
-  this gap. All four cron senders (send-email, send-slack, check-todos,
-  email-precheck) honour the host sentinel today, so outbound email and Slack
-  stop correctly. What was broken is only the agents' own Step 0 check.
+      bash ~/code/spark-ops/ops/pause-propagate.sh --check
+
+  NOTE: the HOST half of the kill switch works independently of all of this.
+  All four cron senders (send-email, send-slack, check-todos, email-precheck)
+  honour the host sentinel directly, so outbound email and Slack stop
+  correctly even if no propagation happens. What this file fixes is the
+  agents' own Step 0 check.
 EOM

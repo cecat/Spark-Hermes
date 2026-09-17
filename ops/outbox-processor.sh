@@ -14,6 +14,19 @@ ensure_path
 load_hermes_env
 require_hermes_config
 
+# PAUSE guard — this is the HOST-side half of Gandalf's scheduled work, so it
+# honours the same host sentinels the OpenClaw cron senders do (pattern cloned
+# from Spark-OpenClaw/shared/scripts/cron/send-slack.sh). The path is defined
+# locally: this is a Spark-Hermes script and must not source Spark-OpenClaw's
+# config.sh. Exit 0 — a deliberate pause is not a cron failure.
+PAUSE_STATE_DIR="$HOME/code/Spark-OpenClaw/shared/state"
+for _sentinel in PAUSE.global PAUSE.agent.gandalf PAUSE.email PAUSE.slack; do
+  if [ -f "$PAUSE_STATE_DIR/$_sentinel" ]; then
+    note "SKIP paused — $PAUSE_STATE_DIR/$_sentinel present"
+    exit 0
+  fi
+done
+
 CONTAINER=$(gandalf_container)
 
 OPERATOR_ID=$(hermes_cfg slack.allowed_users | python3 -c 'import json,sys; print(json.load(sys.stdin)[0]["id"])')

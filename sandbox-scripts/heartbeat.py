@@ -19,6 +19,24 @@ dead-mans-switch check (TODO, not built yet) can compare wall-clock
 time against the file's mtime and alert if heartbeats have stopped
 firing entirely (gateway died, container died, etc).
 
+  *** IF YOU ARE BUILDING THAT DEAD-MANS-SWITCH, READ THIS FIRST. ***
+
+  Since 2026-09-17 this job can be PAUSED by the kill switch, and a
+  paused heartbeat freezes heartbeat-last.json — which is
+  indistinguishable from a dead Gandalf if you only look at the
+  timestamp. A naive DMS would page about a dead agent every time he is
+  deliberately paused, and would train the reader to ignore it.
+
+  The host pause sentinel is the disambiguator. The DMS runs on the host
+  (the only place that can detect a dead container), so check it first
+  and exit quietly:
+
+      STATE_DIR=~/code/Spark-OpenClaw/shared/state
+      [ -f "$STATE_DIR/PAUSE.global" ] && exit 0
+      [ -f "$STATE_DIR/PAUSE.agent.gandalf" ] && exit 0
+
+  See spark-ops/runbook/OPERATING-GUIDE.md §2 and constraint C-23.
+
 Mirrors OpenClaw's HEARTBEAT.md pattern: code for procedure, LLM for
 judgment. No model decisions here — just shell-out checks with
 deterministic pass/fail.

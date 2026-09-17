@@ -300,7 +300,22 @@ echo ""
 echo "=== reconciling Hermes cron jobs against config.yaml ==="
 bash "$REPO/ops/apply-cron.sh" --yes 2>&1 | tail -10
 
-# ── 7. Smoke test ──────────────────────────────────────────────────────
+# ── 7. Re-push Gandalf's pause state ───────────────────────────────────
+# A rebuild recreates every cron job UNPAUSED, so a rebuild performed while
+# Gandalf is paused silently un-pauses him.
+#
+# ORDERING: this MUST run AFTER step 6. apply-cron.sh is what recreates the
+# jobs; pausing before it would pause jobs that are about to be replaced.
+#
+# NOTE FOR ANYONE COMPARING WITH THE OPENCLAW SIDE: the constraint here is the
+# OPPOSITE of spark-ops/ops/planes/post-rebuild-openclaw.sh step 2, which
+# deliberately re-pushes sentinels BEFORE its gateway restart so no unpaused
+# heartbeat tick can race in. Do not "align" the two orderings.
+echo ""
+echo "=== re-pushing Gandalf pause state (rebuild recreates jobs unpaused) ==="
+bash "$(dirname "$0")/push-pause-gandalf.sh" 2>&1 | tail -10
+
+# ── 8. Smoke test ──────────────────────────────────────────────────────
 echo ""
 echo "=== smoke test: gmail search from sandbox ==="
 if docker exec -u sandbox -e HERMES_HOME=/sandbox/.hermes -e PYTHONPATH=/sandbox/.hermes/pylibs "$CONTAINER" \
